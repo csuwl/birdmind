@@ -8,12 +8,13 @@ import torch.nn.functional as F
 
 @dataclass
 class ModelArgs:
-
     vocab_size: int = 102400
     embedding_dim: int = 2048
     block_size: int = 10
 
     # MHA
+    max_seq_len = 4096 * 4
+    max_batch_size = 8
     num_heads: int = 8
     qk_nope_head_dim: int = 128
     qk_rope_head_dim: int = 64
@@ -36,7 +37,7 @@ class MHA(nn.Module):
     注意力层
     """
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, layer_id: int, args: ModelArgs):
         super(MHA, self).__init__()
         self.dim = args.embedding_dim
         self.n_head = args.num_heads
@@ -47,6 +48,16 @@ class MHA(nn.Module):
         self.wk = nn.Linear(self.dim, self.qk_dim * self.n_head)
         self.wv = nn.Linear(self.dim, self.v_dim * self.n_head)
         self.wo = nn.Linear(self.v_dim * self.n_head, self.dim)
+
+        self.register_buffer("k_cache",
+                             torch.zeros(args.max_batch_size, args.max_seq_len, self.n_head, self.qk_dim),
+                             persistent=False)
+        self.register_buffer("v_cache",
+                             torch.zeros(args.max_batch_size, args.max_seq_len, self.n_head, self.v_dim),
+                             persistent=False)
+
+
+
 
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_len, _ = x.size()
@@ -61,6 +72,8 @@ class MHA(nn.Module):
         score = torch.einsum('bshk,bShk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
         #  batch,head,seq_len,seq_len
+        if mask is not None:
+            score += mask.unsqueeze(1)
         score = score.softmax(dim=-1, dtype=x.dtype)
 
         v = self.wv(x)
@@ -87,10 +100,12 @@ class Gate(nn.Module):
         self.score_func = args.score_func
         self.weight = nn.Parameter(torch.empty(args.n_routed_experts, args.embedding_dim))
         self.bias = nn.Parameter(torch.empty(args.n_routed_experts))
+        self.route_scale = args.route_scale
 
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
-        #         -1,dim
+        #        x: -1,dim
         scores = F.linear(x, self.weight)
+        # -1, n_routed_experts
         if self.score_func == "softmax":
             scores = scores.softmax(dim=-1, dtype=torch.float32)
         else:
@@ -99,7 +114,7 @@ class Gate(nn.Module):
         if self.bias is not None:
             scores = scores + self.bias
 
-        indices = torch.topk(scores, self.topk, dim=-1)[1]
+        indices = torch.topk(scores, self.top_k, dim=-1)[1]
         weights = original_scores.gather(1, indices)
         weights *= self.route_scale
         return weights.type_as(x), indices
@@ -115,7 +130,23 @@ class MLP(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
-class MoE:
+
+class Expert(nn.Module):
+    """
+    专家
+    """
+
+    def __init__(self, dim: int, out_dim: int):
+        super(Expert, self).__init__()
+        self.w1 = nn.Linear(dim, out_dim)
+        self.w2 = nn.Linear(out_dim, dim)
+        self.w3 = nn.Linear(dim, out_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.w2(F.silu(self.w1(x)) * self.w3(x))
+
+
+class MoE(nn.Module):
     """
     混合专家模型
     """
@@ -124,16 +155,29 @@ class MoE:
         super(MoE, self).__init__()
         self.dim = args.embedding_dim
         self.gate = Gate(args)
-
+        self.experts = nn.ModuleList(
+            [Expert(args.embedding_dim, args.moe_inter_dim) for _ in range(args.n_routed_experts)])
         self.shared_experts = MLP(args.embedding_dim, args.n_shared_experts * args.moe_inter_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_len, _ = x.size()
+        shape = x.shape
         x = x.view(-1, self.dim)
         weights, indices = self.gate(x)
-        torch.bincount(indices.flatten(), minlength=args.n_expert_groups).tolist()
+        counts = torch.bincount(indices.flatten(), minlength=args.n_expert_groups).tolist()
+        # -1,dim
+        y = torch.zeros_like(x)
 
+        for i in range(counts):
+            if counts[i] == 0:
+                continue
+            expert = self.experts[i]
+            idx, top = torch.where(indices == i)
+            y[idx] += expert(x[idx]) * weights[idx, top, None]
         z = self.shared_experts(x)
+
+        return (y + z).view(shape)
+
 
 #         todo
 
@@ -206,6 +250,14 @@ class Model(torch.nn.Module):
 
 
 if __name__ == "__main__":
+    mask = torch.full((5, 5), float("-inf")).triu_(1)
+    print(mask)
+
+    indes = torch.tensor([10, 3, 7, 8, 9, 10, 654])
+
+    idex, top = torch.where(indes == torch.tensor(10))
+    print(idex, " ", top)
+
     args = ModelArgs()
     routed_weight = torch.empty(args.n_routed_experts, args.embedding_dim)
     print(routed_weight)
@@ -213,6 +265,8 @@ if __name__ == "__main__":
     test_input = torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
                                   , [[10.0, 20.0, 30.0], [40.0, 50.0, 60.0], [70.0, 80.0, 90.0]]])
     print(test_input)
+    print(test_input.gather(2, torch.tensor([[]])))
+
     print(test_input.flatten(1))
 
     score = torch.einsum('bsk,bak->bsa', test_input, test_input)
