@@ -56,8 +56,21 @@ class MHA(nn.Module):
                              torch.zeros(args.max_batch_size, args.max_seq_len, self.n_head, self.v_dim),
                              persistent=False)
 
+    def get_position_embedding(self, x: torch.Tensor, head_num: int) -> torch.Tensor:
+        """
+         x : last 2 dimension is same
+         return position shape  (head, seq_len, seq_len)
+        """
 
-
+        seq_len = x.shape[-1]
+        position = torch.empty(head_num, seq_len, seq_len, dtype=x.dtype, device=x.device)
+        for head in range(head_num):
+            for i in range(seq_len):
+                for j in range(seq_len):
+                    if i < j:
+                        continue
+                    position[head, i, j] = - (i - j) * 2 ** (-(head + 1))
+        return position
 
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
         batch_size, sequence_len, _ = x.size()
@@ -71,6 +84,9 @@ class MHA(nn.Module):
         #         batch,seq_len,head,qk_dim
         score = torch.einsum('bshk,bShk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
+        # add position_embedding
+        score += self.get_position_embedding(score, self.n_head)
+
         #  batch,head,seq_len,seq_len
         if mask is not None:
             score += mask
@@ -179,9 +195,6 @@ class MoE(nn.Module):
         return (y + z).view(shape)
 
 
-#         todo
-
-
 class Block(nn.Module):
     """
     主层堆叠
@@ -233,7 +246,25 @@ class Model(torch.nn.Module):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, vocab_size)
 
-    def forward(self, tokens: torch.Tensor, start_pos: int = 0):
+
+    def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
+        """
+        主model
+        :param start_pos:
+        :param tokens:
+        :return:
+        """
+        input_vector = self.embedding(tokens)
+        mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
+        for block in self.blocks:
+            output = block(input_vector, start_pos, mask)
+        output = self.rms_norm_layer(output)
+        # batch_size,seq_len,vocab_size
+        logits = self.linear(output)
+        return logits
+
+    @torch.inference_mode()
+    def generate(self, tokens: torch.Tensor, start_pos: int = 0):
         """
         主model
         :param start_pos:
@@ -250,8 +281,7 @@ class Model(torch.nn.Module):
 
 
 if __name__ == "__main__":
-
-    att = torch.nn.MultiheadAttention(10,10)
+    att = torch.nn.MultiheadAttention(10, 10)
     mask = torch.full((5, 5), float("-inf")).triu_(1)
     print(mask)
 
