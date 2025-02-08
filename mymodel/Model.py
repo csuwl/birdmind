@@ -73,7 +73,7 @@ class MHA(nn.Module):
         score = score / self.qk_dim ** 0.5
         #  batch,head,seq_len,seq_len
         if mask is not None:
-            score += mask.unsqueeze(1)
+            score += mask
         score = score.softmax(dim=-1, dtype=x.dtype)
 
         v = self.wv(x)
@@ -250,6 +250,8 @@ class Model(torch.nn.Module):
 
 
 if __name__ == "__main__":
+
+    att = torch.nn.MultiheadAttention(10,10)
     mask = torch.full((5, 5), float("-inf")).triu_(1)
     print(mask)
 
