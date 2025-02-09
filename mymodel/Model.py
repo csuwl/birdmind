@@ -6,6 +6,7 @@ from torch import nn, Tensor
 import torch.nn.functional as F
 
 
+
 @dataclass
 class ModelArgs:
     vocab_size: int = 102400
@@ -38,7 +39,7 @@ class MHA(nn.Module):
     """
 
     def __init__(self, layer_id: int, args: ModelArgs):
-        super(MHA, self).__init__()
+        super().__init__()
         self.dim = args.embedding_dim
         self.n_head = args.num_heads
         self.qk_dim = args.qk_dim
@@ -63,13 +64,13 @@ class MHA(nn.Module):
         """
 
         seq_len = x.shape[-1]
-        position = torch.empty(head_num, seq_len, seq_len, dtype=x.dtype, device=x.device)
+        position = torch.zeros(head_num, seq_len, seq_len, dtype=x.dtype, device=x.device)
         for head in range(head_num):
             for i in range(seq_len):
                 for j in range(seq_len):
                     if i < j:
                         continue
-                    position[head, i, j] = - (i - j) * 2 ** (-(head + 1))
+                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),dtype=torch.float64)
         return position
 
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
@@ -90,7 +91,7 @@ class MHA(nn.Module):
         #  batch,head,seq_len,seq_len
         if mask is not None:
             score += mask
-        score = score.softmax(dim=-1, dtype=x.dtype)
+        score = score.softmax(dim=-1, dtype=torch.float64).type_as(x)
 
         v = self.wv(x)
         # batch,seq_len,head,v_dim
@@ -103,12 +104,13 @@ class MHA(nn.Module):
         return out
 
 
-class Gate(nn.Module):
+class Gate(torch.nn.Module):
     """
     门控结构
     """
 
     def __init__(self, args: ModelArgs):
+        super().__init__()
         self.dim = args.embedding_dim
         self.top_k = args.n_activated_experts
         self.n_groups = args.n_expert_groups
@@ -138,7 +140,7 @@ class Gate(nn.Module):
 
 class MLP(torch.nn.Module):
     def __init__(self, dim: int, out_dim: int):
-        super(MLP, self).__init__()
+        super().__init__()
         self.w1 = nn.Linear(dim, out_dim)
         self.w2 = nn.Linear(out_dim, dim)
         self.w3 = nn.Linear(dim, out_dim)
@@ -153,7 +155,7 @@ class Expert(nn.Module):
     """
 
     def __init__(self, dim: int, out_dim: int):
-        super(Expert, self).__init__()
+        super().__init__()
         self.w1 = nn.Linear(dim, out_dim)
         self.w2 = nn.Linear(out_dim, dim)
         self.w3 = nn.Linear(dim, out_dim)
@@ -168,9 +170,10 @@ class MoE(nn.Module):
     """
 
     def __init__(self, args: ModelArgs):
-        super(MoE, self).__init__()
+        super().__init__()
         self.dim = args.embedding_dim
         self.gate = Gate(args)
+        self.n_expert_groups = args.n_expert_groups
         self.experts = nn.ModuleList(
             [Expert(args.embedding_dim, args.moe_inter_dim) for _ in range(args.n_routed_experts)])
         self.shared_experts = MLP(args.embedding_dim, args.n_shared_experts * args.moe_inter_dim)
@@ -180,11 +183,11 @@ class MoE(nn.Module):
         shape = x.shape
         x = x.view(-1, self.dim)
         weights, indices = self.gate(x)
-        counts = torch.bincount(indices.flatten(), minlength=args.n_expert_groups).tolist()
+        counts = torch.bincount(indices.flatten(), minlength=self.n_expert_groups).tolist()
         # -1,dim
         y = torch.zeros_like(x)
 
-        for i in range(counts):
+        for i in range(len(counts)):
             if counts[i] == 0:
                 continue
             expert = self.experts[i]
@@ -223,13 +226,13 @@ class Block(nn.Module):
 
 class RMSNormLayer(nn.Module):
     def __init__(self, dim, eps=1e-8):
-        super(RMSNormLayer, self).__init__()
+        super().__init__()
         self.eps = eps
         self.dim = dim
         self.weight = nn.Parameter(torch.ones(dim))
 
     def forward(self, x):
-        return F.rms_norm(x, [self.dim], self.weight, self.eps)
+        return torch.nn.functional.layer_norm(x, [self.dim], self.weight,None, self.eps)
 
 
 class Model(torch.nn.Module):
@@ -238,14 +241,13 @@ class Model(torch.nn.Module):
     """
 
     def __init__(self, args: ModelArgs):
-        super(Model, self).__init__()
+        super().__init__()
         self.embedding = nn.Embedding(args.vocab_size, args.embedding_dim)
         self.blocks = torch.nn.ModuleList()
         for i in range(args.block_size):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
-        self.linear = nn.Linear(args.embedding_dim, vocab_size)
-
+        self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
 
     def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
@@ -254,10 +256,11 @@ class Model(torch.nn.Module):
         :param tokens:
         :return:
         """
-        input_vector = self.embedding(tokens)
+        seqlen = tokens.size(1)
+        output = self.embedding(tokens)
         mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
         for block in self.blocks:
-            output = block(input_vector, start_pos, mask)
+            output = block(output, start_pos, mask)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len,vocab_size
         logits = self.linear(output)
@@ -271,57 +274,30 @@ class Model(torch.nn.Module):
         :param tokens:
         :return:
         """
+        seq_len=tokens.size(-1)
         input_vector = self.embedding(tokens)
-        mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
+        mask = torch.full((seq_len, seq_len), float("-inf")).triu_(1)
         for block in self.blocks:
             output = block(input_vector, start_pos, mask)
         output = self.rms_norm_layer(output)[:, -1]
+        # batch_size,seq_len,1
         logits = self.linear(output)
         return logits
 
 
 if __name__ == "__main__":
+    head_num = 8
+    seq_len = 20
+
+
     att = torch.nn.MultiheadAttention(10, 10)
     mask = torch.full((5, 5), float("-inf")).triu_(1)
+    score = torch.randn((5,5))
     print(mask)
-
-    indes = torch.tensor([10, 3, 7, 8, 9, 10, 654])
-
-    idex, top = torch.where(indes == torch.tensor(10))
-    print(idex, " ", top)
-
-    args = ModelArgs()
-    routed_weight = torch.empty(args.n_routed_experts, args.embedding_dim)
-    print(routed_weight)
-
-    test_input = torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]
-                                  , [[10.0, 20.0, 30.0], [40.0, 50.0, 60.0], [70.0, 80.0, 90.0]]])
-    print(test_input)
-    print(test_input.gather(2, torch.tensor([[]])))
-
-    print(test_input.flatten(1))
-
-    score = torch.einsum('bsk,bak->bsa', test_input, test_input)
-
-    test_input = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-    score = torch.einsum("is_j,ks_j->ik", test_input, test_input)
+    print(score)
+    score +=mask
+    print(score)
+    score = score.softmax(-1,dtype=torch.float64)
     print(score)
 
-    print(test_input.shape)
-    test_input = test_input[:, -1]
-    print(test_input.shape)
-    print(test_input)
 
-    embedding = nn.Embedding(2048 * 4, 128)
-    vocab_size = 20
-    x = torch.randint(0, vocab_size, (2, 128))
-    print(x)
-    embed = embedding(x)
-    print(embed)
-    rms = RMSNormLayer(128)
-    res = rms(embed)
-    print(res)
-
-    seqlen = 10
-    mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
-    print(mask)
