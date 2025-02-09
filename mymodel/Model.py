@@ -267,7 +267,7 @@ class Model(torch.nn.Module):
         return logits
 
     @torch.inference_mode()
-    def generate(self, tokens: torch.Tensor, start_pos: int = 0):
+    def generate(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
         主model
         :param start_pos:
@@ -280,7 +280,7 @@ class Model(torch.nn.Module):
         for block in self.blocks:
             output = block(input_vector, start_pos, mask)
         output = self.rms_norm_layer(output)[:, -1]
-        # batch_size,seq_len,1
+        # batch_size,1，vocab_size
         logits = self.linear(output)
         return logits
 
