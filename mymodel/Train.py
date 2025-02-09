@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch.utils.data import DataLoader
 
@@ -6,25 +8,13 @@ import tiktoken
 
 from mymodel.MyTrainData import MyTrainData
 
-if __name__ == '__main__':
-
+"""
+训练
+"""
+def train(model: Model, train_loader: DataLoader, args: ModelArgs):
+    model.train()
     torch.set_default_dtype(torch.float64)
 
-    tokenizer = tiktoken.get_encoding("cl100k_base")
-
-    batch_size = 4
-    seq_len = 20
-    vocab_size = tokenizer.n_vocab
-
-    train_data = MyTrainData(seq_len, tokenizer)
-    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
-
-    args = ModelArgs(vocab_size=vocab_size, embedding_dim=64)
-    model = Model(args)
-    print(model)
-    total_loss = 0
-
-    model.train()
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
     for epoch in range(50):
@@ -44,3 +34,25 @@ if __name__ == '__main__':
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
             if batch_idx % 100 == 0:
                 torch.save(model.state_dict(), "./model.pth")
+
+
+
+if __name__ == '__main__':
+
+    tokenizer = tiktoken.get_encoding("cl100k_base")
+
+    batch_size = 5
+    seq_len = 100
+    vocab_size = tokenizer.n_vocab
+
+    train_data = MyTrainData(seq_len, tokenizer)
+    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
+
+    args = ModelArgs(vocab_size=vocab_size, embedding_dim=64)
+    model = Model(args)
+    if os.path.exists("./model.pth"):
+        model.load_state_dict(torch.load("./model.pth"))
+    print(model)
+
+    train(model, dataLoader, args)
+
