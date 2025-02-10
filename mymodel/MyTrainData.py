@@ -9,7 +9,7 @@ class MyTrainData(Dataset):
     def __init__(self, seq_len: int, tokenizer: tiktoken):
         super().__init__()
         self.seq_len = seq_len
-        with open("../sales_textbook.txt", "r") as file:
+        with open("../novel.txt", "rt") as file:
             text = file.read()
 
         self.tokens = torch.tensor(tokenizer.encode(text), dtype=torch.long)

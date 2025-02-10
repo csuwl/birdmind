@@ -17,6 +17,7 @@ if __name__ == '__main__':
 
 
     for _ in range(40):
+        print(tokens)
         # batch_size, 1，vocab_size
         logits = model.generate(tokens, 0)
         logits = logits.softmax(dim=-1)
