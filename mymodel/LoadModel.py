@@ -12,12 +12,11 @@ if __name__ == '__main__':
 
     model.load_state_dict(torch.load('./model.pth'))
 
-    tokens = torch.tensor(tokenizer.encode('Addressing any additional concerns or questions is an essential part of the sales process.'), dtype=torch.long)
+    tokens = torch.tensor(tokenizer.encode('你'), dtype=torch.long)
     tokens = tokens.unsqueeze(0)
 
 
     for _ in range(40):
-        print(tokens)
         # batch_size, 1，vocab_size
         logits = model.generate(tokens, 0)
         logits = logits.softmax(dim=-1)

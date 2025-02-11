@@ -1,15 +1,15 @@
 import random
 
+import tiktoken
 import torch
 from torch.utils.data import Dataset
-from transformers.integrations import tiktoken
 
 
 class MyTrainData(Dataset):
     def __init__(self, seq_len: int, tokenizer: tiktoken):
         super().__init__()
         self.seq_len = seq_len
-        with open("../novel.txt", "rt") as file:
+        with open("../../novel.txt", "rt") as file:
             text = file.read()
 
         self.tokens = torch.tensor(tokenizer.encode(text), dtype=torch.long)
