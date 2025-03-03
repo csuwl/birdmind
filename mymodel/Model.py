@@ -116,19 +116,28 @@ class Gate(torch.nn.Module):
         self.top_k = args.n_activated_experts
         self.n_groups = args.n_expert_groups
         self.score_func = args.score_func
-        self.weight = nn.Parameter(torch.empty(args.n_routed_experts, args.embedding_dim))
-        self.bias = nn.Parameter(torch.empty(args.n_routed_experts))
+        self.weight = nn.Parameter(torch.randn(args.n_routed_experts, args.embedding_dim))
+        self.bias = nn.Parameter(torch.randn(args.n_routed_experts))
 
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
         bsz, seq_len, h = x.shape
         hidden_states = x.view(-1, h)
+        if torch.isnan(hidden_states).any():
+            raise ValueError("scores value is nan")
+
         logits = F.linear(hidden_states, self.weight, self.bias)
         if self.score_func == 'softmax':
             scores = logits.softmax(dim=-1)
         else:
             scores = logits.sigmoid()
 
+        if torch.isnan(scores).any():
+            raise ValueError("scores value is nan")
+
         topk_weight, topk_idx = torch.topk(scores, k=self.top_k, dim=-1, sorted=False)
+
+        if torch.isnan(topk_weight).any():
+            raise ValueError("topk_weight value is nan")
 
         if self.top_k > 1 :
             denominator = topk_weight.sum(dim=-1, keepdim=True) + 1e-20
