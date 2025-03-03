@@ -9,9 +9,9 @@ import torch.nn.functional as F
 
 @dataclass
 class ModelArgs:
-    vocab_size: int = 102400
-    embedding_dim: int = 2048
-    block_size: int = 10
+    vocab_size: int = 6400
+    embedding_dim: int = 512
+    block_size: int = 8
 
     # MHA
     max_seq_len = 4096 * 4
@@ -23,14 +23,12 @@ class ModelArgs:
     v_dim: int = 128
 
     # moe
-    moe_inter_dim = 1408
-    n_routed_experts: int = 64
+    moe_inter_dim = 512
+    n_routed_experts: int = 4
     n_shared_experts: int = 2
-    n_activated_experts: int = 6
-    n_expert_groups: int = 1
-    n_limited_groups: int = 1
+    n_activated_experts: int = 2
+    n_expert_groups: int = 4
     score_func: Literal["softmax", "sigmoid"] = "softmax"
-    route_scale: float = 1.
 
 
 class MHA(nn.Module):
@@ -114,28 +112,40 @@ class Gate(torch.nn.Module):
         self.dim = args.embedding_dim
         self.top_k = args.n_activated_experts
         self.n_groups = args.n_expert_groups
-        self.top_k_groups = args.n_expert_groups
         self.score_func = args.score_func
         self.weight = nn.Parameter(torch.empty(args.n_routed_experts, args.embedding_dim))
         self.bias = nn.Parameter(torch.empty(args.n_routed_experts))
-        self.route_scale = args.route_scale
 
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
-        #        x: -1,dim
-        scores = F.linear(x, self.weight)
-        # -1, n_routed_experts
-        if self.score_func == "softmax":
-            scores = scores.softmax(dim=-1, dtype=torch.float32)
+        bsz, seq_len, h = x.shape
+        hidden_states = x.view(-1, h)
+        logits = F.linear(hidden_states, self.weight, self.bias)
+        if self.score_func == 'softmax':
+            scores = logits.softmax(dim=-1)
         else:
-            scores = scores.sigmoid()
-        original_scores = scores
-        if self.bias is not None:
-            scores = scores + self.bias
+            scores = logits.sigmoid()
 
-        indices = torch.topk(scores, self.top_k, dim=-1)[1]
-        weights = original_scores.gather(1, indices)
-        weights *= self.route_scale
-        return weights.type_as(x), indices
+        topk_weight, topk_idx = torch.topk(scores, k=self.top_k, dim=-1, sorted=False)
+
+        if self.top_k > 1 :
+            denominator = topk_weight.sum(dim=-1, keepdim=True) + 1e-20
+            topk_weight = topk_weight / denominator
+
+        if self.training :
+            scores_for_aux = scores
+            aux_topk = self.top_k
+            topk_idx_for_aux_loss = topk_idx.view(bsz, -1)
+
+            # 序列级辅助损失
+            scores_for_seq_aux = scores_for_aux.view(bsz, seq_len, -1)
+            ce = torch.zeros(bsz, self.n_groups, device=hidden_states.device)
+            ce.scatter_add_(1, topk_idx_for_aux_loss,
+                            torch.ones(bsz, seq_len * aux_topk, device=hidden_states.device)).div_(
+                seq_len * aux_topk / self.n_groups)
+            aux_loss = (ce * scores_for_seq_aux.mean(dim=1)).sum(dim=1).mean()
+        else:
+            aux_loss = 0
+        return topk_idx, topk_weight, aux_loss
 
 
 class MLP(torch.nn.Module):
@@ -174,28 +184,58 @@ class MoE(nn.Module):
         self.dim = args.embedding_dim
         self.gate = Gate(args)
         self.n_expert_groups = args.n_expert_groups
+        self.n_activated_experts=args.n_activated_experts
         self.experts = nn.ModuleList(
             [Expert(args.embedding_dim, args.moe_inter_dim) for _ in range(args.n_routed_experts)])
         self.shared_experts = MLP(args.embedding_dim, args.n_shared_experts * args.moe_inter_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        batch_size, sequence_len, _ = x.size()
-        shape = x.shape
-        x = x.view(-1, self.dim)
-        weights, indices = self.gate(x)
-        counts = torch.bincount(indices.flatten(), minlength=self.n_expert_groups).tolist()
-        # -1,dim
-        y = torch.zeros_like(x)
+        identity = x
+        orig_shape = x.shape
+        bsz, seq_len, _ = x.shape
+        # 使用门控机制选择专家
+        topk_idx, topk_weight, aux_loss = self.gate(x)
+        x = x.view(-1, x.shape[-1])
+        flat_topk_idx = topk_idx.view(-1)
+        if self.training:
+            # 训练模式下，重复输入数据
+            x = x.repeat_interleave(self.n_activated_experts, dim=0)
+            y = torch.empty_like(x, dtype=torch.float16)
+            for i, expert in enumerate(self.experts):
+                y[flat_topk_idx == i] = expert(x[flat_topk_idx == i]).to(y.dtype)  # 确保类型一致
+            y = (y.view(*topk_weight.shape, -1) * topk_weight.unsqueeze(-1)).sum(dim=1)
+            y = y.view(*orig_shape)
+        else:
+            # 推理模式下，只选择最优专家
+            y = self.moe_infer(x, flat_topk_idx, topk_weight.view(-1, 1)).view(*orig_shape)
+        if self.config.n_shared_experts is not None:
+            y = y + self.shared_experts(identity)
+        self.aux_loss = aux_loss
+        return y
 
-        for i in range(len(counts)):
-            if counts[i] == 0:
+    @torch.no_grad()
+    def moe_infer(self, x, flat_expert_indices, flat_expert_weights):
+        expert_cache = torch.zeros_like(x)
+        idxs = flat_expert_indices.argsort()
+        tokens_per_expert = flat_expert_indices.bincount().cpu().numpy().cumsum(0)
+        token_idxs = idxs // self.n_activated_experts
+        # 例如当tokens_per_expert=[6, 15, 20, 26, 33, 38, 46, 52]
+        # 当token_idxs=[3, 7, 19, 21, 24, 25,  4,  5,  6, 10, 11, 12...]
+        # 意味着当token_idxs[:6] -> [3,  7, 19, 21, 24, 25,  4]位置的token都由专家0处理，token_idxs[6:15]位置的token都由专家1处理......
+        for i, end_idx in enumerate(tokens_per_expert):
+            start_idx = 0 if i == 0 else tokens_per_expert[i - 1]
+            if start_idx == end_idx:
                 continue
             expert = self.experts[i]
-            idx, top = torch.where(indices == i)
-            y[idx] += expert(x[idx]) * weights[idx, top, None]
-        z = self.shared_experts(x)
+            exp_token_idx = token_idxs[start_idx:end_idx]
+            expert_tokens = x[exp_token_idx]
+            expert_out = expert(expert_tokens).to(expert_cache.dtype)
+            expert_out.mul_(flat_expert_weights[idxs[start_idx:end_idx]])
+            # 使用 scatter_add_ 进行 sum 操作
+            expert_cache.scatter_add_(0, exp_token_idx.view(-1, 1).repeat(1, x.shape[-1]), expert_out)
 
-        return (y + z).view(shape)
+        return expert_cache
+
 
 
 class Block(nn.Module):
@@ -264,7 +304,8 @@ class Model(torch.nn.Module):
         output = self.rms_norm_layer(output)
         # batch_size,seq_len,vocab_size
         logits = self.linear(output)
-        return logits
+        aux_loss = sum(l.moe.aux_loss for l in self.blocks)
+        return logits, aux_loss
 
     @torch.inference_mode()
     def generate(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:

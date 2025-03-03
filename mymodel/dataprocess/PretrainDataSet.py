@@ -1,14 +1,13 @@
 import json
 
-import tiktoken
 import torch
 from torch.utils.data import Dataset
 
 
 class PretrainDataset(Dataset):
-    def __init__(self, data_path, tokenizer: tiktoken, max_length=512):
+    def __init__(self, data_path, tokenizer, max_length=512):
         super().__init__()
-        self.tokenizer: tiktoken = tokenizer
+        self.tokenizer  = tokenizer
         self.max_length = max_length
         self.samples = self.load_data(data_path)
 
@@ -27,22 +26,16 @@ class PretrainDataset(Dataset):
         sample = self.samples[index]
 
         # 构建输入文本
-        text = sample['text']
-        encoding = self.tokenizer.encode(text)
-        length = len(encoding)
-        if length > self.max_length:
-            encoding = encoding[:self.max_length]
-        elif length < self.max_length:
-            encoding = encoding + [self.tokenizer.eot_token] *(self.max_length-length)
-        # encoding = self.tokenizer(
-        #     text,
-        #     max_length=self.max_length,
-        #     padding='max_length',
-        #     truncation=True,
-        #     return_tensors='pt'
-        # )
-        input_ids = torch.tensor(encoding).squeeze()
-        loss_mask = torch.empty_like(input_ids)
+        text = f"{self.tokenizer.bos_token}{str(sample['text'])}{self.tokenizer.eos_token}"
+        encoding = self.tokenizer(
+            text,
+            max_length=self.max_length,
+            padding='max_length',
+            truncation=True,
+            return_tensors='pt'
+        )
+        input_ids = encoding.input_ids.squeeze()
+        loss_mask = (input_ids != self.tokenizer.pad_token_id)
 
         X = torch.tensor(input_ids[:-1], dtype=torch.long)
         Y = torch.tensor(input_ids[1:], dtype=torch.long)

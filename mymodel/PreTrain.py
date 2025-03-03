@@ -2,11 +2,11 @@ import os
 
 import torch
 from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
 
-from mymodel.Model import ModelArgs, Model
-import tiktoken
+from Model import ModelArgs, Model
 
-from mymodel.dataprocess.PretrainDataSet import PretrainDataset
+from dataprocess.PretrainDataSet import PretrainDataset
 
 """
 训练
@@ -15,7 +15,7 @@ from mymodel.dataprocess.PretrainDataSet import PretrainDataset
 
 def train(model: Model, train_loader: DataLoader, args: ModelArgs):
     model.train()
-    torch.set_default_dtype(torch.float64)
+    torch.set_default_dtype(torch.float16)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
@@ -24,10 +24,13 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs):
         for batch_idx, data in enumerate(train_loader):
             x, y, loss_mask = data
             seq_len = x.shape[1]
-            out = model.forward(x, 0)
+            out, aux_loss = model.forward(x, 0)
             out = out.view(batch_size * seq_len, vocab_size)
-            y = y.view(batch_size * seq_len)
+            y = y.view(batch_size * seq_len,vocab_size)
             loss = torch.nn.functional.cross_entropy(out, y)
+
+            loss = (loss * loss_mask).sum() / loss_mask.sum()
+            loss += aux_loss * 0.1
 
             optimizer.zero_grad()
             loss.backward()
@@ -41,10 +44,11 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs):
 
 if __name__ == '__main__':
 
-    tokenizer = tiktoken.get_encoding("cl100k_base")
+
+    tokenizer = AutoTokenizer.from_pretrained('./minimind_tokenizer')
 
     batch_size = 128
-    vocab_size = tokenizer.n_vocab
+    vocab_size = 6400
     max_seq_len = 512
     embedding_dim = 512
 
