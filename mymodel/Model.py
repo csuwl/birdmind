@@ -69,6 +69,9 @@ class MHA(nn.Module):
                     if i < j:
                         continue
                     position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),dtype=torch.float64)
+
+        if torch.isnan(position).any():
+            raise ValueError("position value is nan")
         return position
 
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
@@ -208,7 +211,7 @@ class MoE(nn.Module):
         else:
             # 推理模式下，只选择最优专家
             y = self.moe_infer(x, flat_topk_idx, topk_weight.view(-1, 1)).view(*orig_shape)
-        if self.config.n_shared_experts is not None:
+        if self.n_expert_groups is not None:
             y = y + self.shared_experts(identity)
         self.aux_loss = aux_loss
         return y
@@ -299,6 +302,8 @@ class Model(torch.nn.Module):
         seqlen = tokens.size(1)
         output = self.embedding(tokens)
         mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
+        if torch.isnan(mask).any():
+            raise Exception("nan 错误")
         for block in self.blocks:
             output = block(output, start_pos, mask)
         output = self.rms_norm_layer(output)

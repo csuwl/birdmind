@@ -26,7 +26,7 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs):
             seq_len = x.shape[1]
             out, aux_loss = model.forward(x, 0)
             out = out.view(batch_size * seq_len, vocab_size)
-            y = y.view(batch_size * seq_len,vocab_size)
+            y = y.view(batch_size * seq_len)
             loss = torch.nn.functional.cross_entropy(out, y)
 
             loss = (loss * loss_mask).sum() / loss_mask.sum()
