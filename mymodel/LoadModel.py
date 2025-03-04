@@ -1,12 +1,19 @@
-import tiktoken
 import torch
+from transformers import AutoTokenizer
 
 from mymodel.Model import Model, ModelArgs
 
 
-def generate(model:Model ,str):
+def generate(tokenizer , model:Model ,str):
+    tokens = tokenizer(
+        str,
+        max_length=512,
+        padding='max_length',
+        truncation=True,
+        return_tensors='pt'
+    ).input_ids
     for _ in range(40):
-        # batch_size, 1，vocab_size
+        # batch_size, seq_len
         logits = model.generate(tokens, 0)
         logits = logits.softmax(dim=-1)
         last_token = logits.argmax(1)
@@ -18,16 +25,16 @@ def generate(model:Model ,str):
     print(tokenizer.decode(tokens.tolist()))
 
 if __name__ == '__main__':
-    tokenizer = tiktoken.get_encoding("cl100k_base")
+    tokenizer = AutoTokenizer.from_pretrained('./minimind_tokenizer')
 
     vocab_size = 6400
-    args = ModelArgs(vocab_size=vocab_size, embedding_dim=64)
+    args = ModelArgs(vocab_size=vocab_size, embedding_dim=512)
     model = Model(args)
 
     model.load_state_dict(torch.load('./model.pth'))
 
 
 
-    generate(model, '你好')
+    generate(tokenizer, model, ['你好'])
 
 
