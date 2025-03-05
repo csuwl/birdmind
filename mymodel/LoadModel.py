@@ -4,7 +4,7 @@ from transformers import AutoTokenizer
 from mymodel.Model import Model, ModelArgs
 
 
-def generate(tokenizer , model:Model ,str):
+def generate(tokenizer , model:Model ,str, max_seq_len):
     tokens = tokenizer(
         str,
         max_length=512,
@@ -12,7 +12,7 @@ def generate(tokenizer , model:Model ,str):
         truncation=True,
         return_tensors='pt'
     ).input_ids
-    for _ in range(40):
+    for _ in range(max_seq_len):
         # batch_size, seq_len
         logits = model.generate(tokens, 0)
         logits = logits.softmax(dim=-1)
@@ -35,6 +35,6 @@ if __name__ == '__main__':
 
 
 
-    generate(tokenizer, model, ['你好'])
+    generate(tokenizer, model, ['你好'], 40)
 
 

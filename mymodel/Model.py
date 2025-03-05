@@ -4,7 +4,9 @@ from typing import Literal, Any
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
-
+from torch.cuda.amp import autocast
+from transformers import AutoTokenizer
+import os
 
 
 @dataclass
@@ -69,9 +71,6 @@ class MHA(nn.Module):
                     if i < j:
                         continue
                     position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),dtype=torch.float64)
-
-        if torch.isnan(position).any():
-            raise ValueError("position value is nan")
         return position
 
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
@@ -122,8 +121,6 @@ class Gate(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
         bsz, seq_len, h = x.shape
         hidden_states = x.view(-1, h)
-        if torch.isnan(hidden_states).any():
-            raise ValueError("scores value is nan")
 
         logits = F.linear(hidden_states, self.weight, self.bias)
         if self.score_func == 'softmax':
@@ -131,13 +128,8 @@ class Gate(torch.nn.Module):
         else:
             scores = logits.sigmoid()
 
-        if torch.isnan(scores).any():
-            raise ValueError("scores value is nan")
-
         topk_weight, topk_idx = torch.topk(scores, k=self.top_k, dim=-1, sorted=False)
 
-        if torch.isnan(topk_weight).any():
-            raise ValueError("topk_weight value is nan")
 
         if self.top_k > 1 :
             denominator = topk_weight.sum(dim=-1, keepdim=True) + 1e-20
@@ -301,6 +293,7 @@ class Model(torch.nn.Module):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
 
+    @autocast()
     def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
         主model
@@ -311,8 +304,7 @@ class Model(torch.nn.Module):
         seqlen = tokens.size(1)
         output = self.embedding(tokens)
         mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
-        if torch.isnan(mask).any():
-            raise Exception("nan 错误")
+
         for block in self.blocks:
             output = block(output, start_pos, mask)
         output = self.rms_norm_layer(output)
@@ -321,6 +313,7 @@ class Model(torch.nn.Module):
         aux_loss = sum(l.moe.aux_loss for l in self.blocks)
         return logits, aux_loss
 
+    @autocast()
     @torch.inference_mode()
     def generate(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
@@ -338,21 +331,29 @@ class Model(torch.nn.Module):
         # batch_size,1，vocab_size
         logits = self.linear(output)
         return logits
+    
+    @staticmethod
+    def init_model(args: ModelArgs):
+        tokenizer = AutoTokenizer.from_pretrained('./minimind_tokenizer')
+        
+        model = Model(args)
+        if os.path.exists("./model.pth"):
+            model.load_state_dict(torch.load("./model.pth"))
+        print(model)
+        
+        print(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
+        
+        return tokenizer, model
 
 
 if __name__ == "__main__":
-    head_num = 8
-    seq_len = 20
+    if torch.cuda.is_available():
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        print("use cuda")
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        print("use cpu")
 
 
-    att = torch.nn.MultiheadAttention(10, 10)
-    mask = torch.full((5, 5), float("-inf")).triu_(1)
-    score = torch.randn((5,5))
-    print(mask)
-    print(score)
-    score +=mask
-    print(score)
-    score = score.softmax(-1,dtype=torch.float64)
-    print(score)
 
 
