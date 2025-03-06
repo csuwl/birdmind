@@ -13,7 +13,7 @@ from dataprocess.PretrainDataSet import PretrainDataset
 """
 
 
-def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 50):
+def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2):
     model.train()
     torch.set_default_dtype(torch.float16)
 
