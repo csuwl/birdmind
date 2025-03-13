@@ -11,6 +11,7 @@ import os
 
 @dataclass
 class ModelArgs:
+    device: Any = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vocab_size: int = 6400
     embedding_dim: int = 512
     block_size: int = 8

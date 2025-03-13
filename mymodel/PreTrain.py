@@ -15,6 +15,8 @@ from dataprocess.PretrainDataSet import PretrainDataset
 
 def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2):
     model.train()
+    model.to(args.device)
+    
     torch.set_default_dtype(torch.float16)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
@@ -23,6 +25,11 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
         print("epoch:", epoch)
         for batch_idx, data in enumerate(train_loader):
             x, y, loss_mask = data
+            x.to(args.device)
+            y.to(args.device)
+            loss_mask.to(args.device)
+            
+            
             seq_len = x.shape[1]
             out, aux_loss = model.forward(x, 0)
             out = out.view(batch_size * seq_len, args.vocab_size)
@@ -45,6 +52,8 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
 if __name__ == '__main__':
     
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
     if torch.cuda.is_available():
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         print("use cuda")
@@ -52,7 +61,7 @@ if __name__ == '__main__':
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         print("use cpu")
 
-    args = ModelArgs(vocab_size=6400, embedding_dim=512)
+    args = ModelArgs(device= device, vocab_size=6400, embedding_dim=512)
     tokenizer, model = Model.init_model(args)
     
     train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
