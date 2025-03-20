@@ -19,11 +19,13 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     
     torch.set_default_dtype(torch.float16)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
         for batch_idx, data in enumerate(train_loader):
+            optimizer.zero_grad()
+            
             x, y, loss_mask = data
             x.to(args.device)
             y.to(args.device)
@@ -39,7 +41,6 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss = (loss * loss_mask).sum() / loss_mask.sum()
             loss += aux_loss * 0.1
 
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 

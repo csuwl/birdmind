@@ -304,7 +304,7 @@ class Model(torch.nn.Module):
         """
         seqlen = tokens.size(1)
         output = self.embedding(tokens)
-        mask = torch.full((seqlen, seqlen), float("-inf")).triu_(1)
+        mask = torch.full((seqlen, seqlen), float("-inf"),device=tokens.device).triu_(1)
 
         for block in self.blocks:
             output = block(output, start_pos, mask)
