@@ -281,7 +281,8 @@ class Model(torch.nn.Module):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
-        self.alibi = self.get_position_embedding(args.max_seq_len, args.num_heads, args.device)
+        self.alibi = self.get_position_embedding(512, args.num_heads, args.device)
+        
 
     def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
