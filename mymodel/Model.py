@@ -58,25 +58,13 @@ class MHA(nn.Module):
                              torch.zeros(args.max_batch_size, args.max_seq_len, self.n_head, self.v_dim),
                              persistent=False)
 
-    def get_position_embedding(self, x: torch.Tensor, head_num: int) -> torch.Tensor:
-        """
-         x : last 2 dimension is same
-         return position shape  (head, seq_len, seq_len)
-        """
+    
 
-        seq_len = x.shape[-1]
-        position = torch.zeros(head_num, seq_len, seq_len, dtype=x.dtype, device=x.device)
-        for head in range(head_num):
-            for i in range(seq_len):
-                for j in range(seq_len):
-                    if i < j:
-                        continue
-                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),dtype=torch.float64)
-        return position
-
-    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor,pos_embedding:torch.Tensor) -> torch.Tensor:
         batch_size, sequence_len, _ = x.size()
         end_pos = start_pos + sequence_len
+        # 裁剪pos_embedding head,seq_len,seq_len
+        pos_embedding_temp = pos_embedding[:, start_pos:end_pos, start_pos:end_pos]
         q = self.wq(x)
         k = self.wk(x)
 
@@ -87,12 +75,12 @@ class MHA(nn.Module):
         score = torch.einsum('bshk,bShk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
         # add position_embedding
-        score += self.get_position_embedding(score, self.n_head)
+        score += pos_embedding_temp
 
         #  batch,head,seq_len,seq_len
         if mask is not None:
             score += mask
-        score = score.softmax(dim=-1, dtype=torch.float64).type_as(x)
+        score = score.softmax(dim=-1).type_as(x)
 
         v = self.wv(x)
         # batch,seq_len,head,v_dim
@@ -205,7 +193,7 @@ class MoE(nn.Module):
         if self.training:
             # 训练模式下，重复输入数据
             x = x.repeat_interleave(self.n_activated_experts, dim=0)
-            y = torch.empty_like(x, dtype=torch.float16)
+            y = torch.randn_like(x, dtype=torch.float16)
             for i, expert in enumerate(self.experts):
                 y[flat_topk_idx == i] = expert(x[flat_topk_idx == i]).to(y.dtype)  # 确保类型一致
             y = (y.view(*topk_weight.shape, -1) * topk_weight.unsqueeze(-1)).sum(dim=1)
@@ -256,14 +244,14 @@ class Block(nn.Module):
         self.attn_norm = RMSNormLayer(args.embedding_dim)
         self.ffn_norm = RMSNormLayer(args.embedding_dim)
 
-    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor, pos_embedding: torch.Tensor) -> torch.Tensor:
         """
 
         :param x:
         :return:
         """
         # batch,seq_len,dim
-        x = x + self.attn(self.attn_norm(x), start_pos, mask)
+        x = x + self.attn(self.attn_norm(x), start_pos, mask, pos_embedding)
         # batch, seq_len, dim
         x = x + self.moe(self.ffn_norm(x))
         return x
@@ -293,8 +281,8 @@ class Model(torch.nn.Module):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
+        self.alibi = self.get_position_embedding(args.max_seq_len, args.num_heads, args.device)
 
-    @autocast()
     def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
         主model
@@ -307,14 +295,29 @@ class Model(torch.nn.Module):
         mask = torch.full((seqlen, seqlen), float("-inf"),device=tokens.device).triu_(1)
 
         for block in self.blocks:
-            output = block(output, start_pos, mask)
+            output = block(output, start_pos, mask, self.alibi)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len,vocab_size
         logits = self.linear(output)
         aux_loss = sum(l.moe.aux_loss for l in self.blocks)
         return logits, aux_loss
+    
 
-    @autocast()
+    def get_position_embedding(self, seq_len: int, head_num: int, device) -> torch.Tensor:
+        """
+         x : last 2 dimension is same
+         return position shape  (head, seq_len, seq_len)
+        """
+
+        position = torch.zeros(head_num, seq_len, seq_len, device=device,requires_grad=False)
+        for head in range(head_num):
+            for i in range(seq_len):
+                for j in range(seq_len):
+                    if i < j:
+                        continue
+                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)))
+        return position
+
     @torch.inference_mode()
     def generate(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
@@ -348,12 +351,7 @@ class Model(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    if torch.cuda.is_available():
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        print("use cuda")
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
-        print("use cpu")
+    pass
 
 
 

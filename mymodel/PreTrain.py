@@ -17,9 +17,8 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     model.train()
     model.to(args.device)
     
-    torch.set_default_dtype(torch.float16)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -39,8 +38,8 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss = torch.nn.functional.cross_entropy(out, y)
 
             loss = (loss * loss_mask).sum() / loss_mask.sum()
-            loss += aux_loss * 0.1
-
+            loss += aux_loss 
+            print(loss)
             loss.backward()
             optimizer.step()
 
@@ -53,14 +52,15 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
 if __name__ == '__main__':
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     
-    if torch.cuda.is_available():
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        print("use cuda")
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
-        print("use cpu")
+    # if torch.cuda.is_available():
+    #     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    #     print("use cuda")
+    # else:
+    #     os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    #     print("use cpu")
 
     args = ModelArgs(device= device, vocab_size=6400, embedding_dim=512)
     tokenizer, model = Model.init_model(args)
