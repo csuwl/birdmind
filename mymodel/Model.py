@@ -87,7 +87,7 @@ class MHA(nn.Module):
         v = v.view(batch_size, sequence_len, self.n_head, self.v_dim)
 
         # v * score
-        out = torch.einsum('bhsS,bshv->bShv', score, v)
+        out = torch.einsum('bhsS,bShv->bshv', score, v)
         # batch,seq_len,dim
         out = self.wo(out.flatten(2))
         return out
