@@ -13,14 +13,15 @@ def generate(tokenizer , model:Model ,str, max_seq_len):
         return_tensors='pt'
     ).input_ids
     for _ in range(max_seq_len):
-        # batch_size, seq_len
+        # batch_size,1, vocab_size
         logits = model.generate(tokens, 0)
         logits = logits.softmax(dim=-1)
-        last_token = logits.argmax(1)
+        last_token: torch.Tensor = logits.argmax(-1)
 
         # cat response
-        last_token = last_token.unsqueeze(-1)
+        last_token = last_token.unsqueeze(0)
         tokens = torch.cat((tokens, last_token), dim=-1)
+        print(tokenizer.decode(tokens[0].tolist()))
 
     print(tokenizer.decode(tokens.tolist()))
 

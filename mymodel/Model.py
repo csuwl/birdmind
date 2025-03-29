@@ -328,13 +328,14 @@ class Model(torch.nn.Module):
         :return:
         """
         seq_len=tokens.size(-1)
-        input_vector = self.embedding(tokens)
+        output = self.embedding(tokens)
         mask = torch.full((seq_len, seq_len), float("-inf")).triu_(1)
         for block in self.blocks:
-            output = block(input_vector, start_pos, mask)
-        output = self.rms_norm_layer(output)[:, -1]
-        # batch_size,1，vocab_size
+            output = block(output, start_pos, mask)
+        output = self.rms_norm_layer(output)
+        # batch_size,seq_len，vocab_size
         logits = self.linear(output)
+        logits = logits[:, -1, :]
         return logits
     
     @staticmethod
