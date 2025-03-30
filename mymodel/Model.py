@@ -5,12 +5,12 @@ import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 from torch.cuda.amp import autocast
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer,PretrainedConfig
 import os
 
 
 @dataclass
-class ModelArgs:
+class ModelArgs(PretrainedConfig):
     device: Any = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vocab_size: int = 6400
     embedding_dim: int = 512
@@ -331,7 +331,7 @@ class Model(torch.nn.Module):
         output = self.embedding(tokens)
         mask = torch.full((seq_len, seq_len), float("-inf")).triu_(1)
         for block in self.blocks:
-            output = block(output, start_pos, mask)
+            output = block(output, start_pos, mask ,self.alibi)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len，vocab_size
         logits = self.linear(output)
