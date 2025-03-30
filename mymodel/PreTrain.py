@@ -18,7 +18,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     model.to(args.device)
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -33,13 +33,19 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             
             seq_len = x.shape[1]
             out, aux_loss = model.forward(x, 0)
+            token_id_out = out.argmax(2)
+
+            print(tokenizer.decode(token_id_out[0].tolist()))
+
             out = out.view(batch_size * seq_len, args.vocab_size)
             y = y.view(batch_size * seq_len)
             loss = torch.nn.functional.cross_entropy(out, y)
-
+            
             loss = (loss * loss_mask).sum() / loss_mask.sum()
-            loss += aux_loss 
-            print(loss)
+            print('loss: ',loss)
+            print('auxloss: ',aux_loss)
+            loss += aux_loss * 0.01
+            print('总loss: ',loss)
             loss.backward()
             optimizer.step()
 
@@ -52,15 +58,15 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
 if __name__ == '__main__':
     
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     
-    # if torch.cuda.is_available():
-    #     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    #     print("use cuda")
-    # else:
-    #     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    #     print("use cpu")
+    if torch.cuda.is_available():
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        print("use cuda")
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        print("use cpu")
 
     args = ModelArgs(device= device, vocab_size=6400, embedding_dim=512)
     tokenizer, model = Model.init_model(args)
