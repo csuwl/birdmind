@@ -32,18 +32,11 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             
             
             seq_len = x.shape[1]
-<<<<<<< HEAD
             out, aux_loss = model.forward(x, 0)
             token_id_out = out.argmax(2)
 
             print(tokenizer.decode(token_id_out[0].tolist()))
 
-=======
-            
-            res = model.forward(x,0)
-            out, aux_loss = res.logits, res.aux_loss
-            
->>>>>>> 19a770ae802e2e5f80bba5657cf702c9f9ae7138
             out = out.view(batch_size * seq_len, args.vocab_size)
             y = y.view(batch_size * seq_len)
             loss = torch.nn.functional.cross_entropy(out, y)
