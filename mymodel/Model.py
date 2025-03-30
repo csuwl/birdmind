@@ -1,37 +1,54 @@
 from dataclasses import dataclass
-from typing import Literal, Any
+from typing import Literal, Any,Optional,List,Tuple
 
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 from torch.cuda.amp import autocast
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer,PretrainedConfig,PreTrainedModel
+from transformers.modeling_outputs import CausalLMOutputWithPast
 import os
 
 
 @dataclass
-class ModelArgs:
-    device: Any = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    vocab_size: int = 6400
-    embedding_dim: int = 512
-    block_size: int = 8
+class ModelArgs(PretrainedConfig):
+    model_type = "birdmind"
+    
+    def __init__(self, *,
+                 device =torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                 vocab_size: int = 6400,
+                 embedding_dim: int = 512,
+                 block_size: int = 8, 
+                 max_seq_len: int = 4096,
+                 num_heads: int = 8,
+                 qk_dim: int = 128,
+                 v_dim: int = 128,
+                 moe_inter_dim: int = 512,
+                 n_expert_groups: int = 4,
+                 n_shared_experts: int = 2,
+                 n_activated_experts: int = 2,
+                 score_func: Literal["softmax", "sigmoid"] = "softmax",
+                 **kwargs):
+        
+        self.device: Any = device
+        self.vocab_size: int = vocab_size 
+        self.embedding_dim: int = embedding_dim
+        self.block_size: int = block_size
 
-    # MHA
-    max_seq_len = 4096 * 4
-    max_batch_size = 8
-    num_heads: int = 8
-    qk_nope_head_dim: int = 128
-    qk_rope_head_dim: int = 64
-    qk_dim: int = 128
-    v_dim: int = 128
+        # MHA
+        self.max_seq_len = max_seq_len
+        self.num_heads: int = num_heads
+        self.qk_dim: int = qk_dim
+        self.v_dim: int = v_dim
 
-    # moe
-    moe_inter_dim = 512
-    n_routed_experts: int = 4
-    n_shared_experts: int = 2
-    n_activated_experts: int = 2
-    n_expert_groups: int = 4
-    score_func: Literal["softmax", "sigmoid"] = "softmax"
+        # moe
+        self.moe_inter_dim = moe_inter_dim
+        self.n_expert_groups: int = n_expert_groups
+        self.n_shared_experts: int = n_shared_experts
+        self.n_activated_experts: int = n_activated_experts
+        self.score_func: Literal["softmax", "sigmoid"] = score_func
+        
+        super().__init__(**kwargs)
 
 
 class MHA(nn.Module):
@@ -50,26 +67,28 @@ class MHA(nn.Module):
         self.wk = nn.Linear(self.dim, self.qk_dim * self.n_head)
         self.wv = nn.Linear(self.dim, self.v_dim * self.n_head)
         self.wo = nn.Linear(self.v_dim * self.n_head, self.dim)
-
-        self.register_buffer("k_cache",
-                             torch.zeros(args.max_batch_size, args.max_seq_len, self.n_head, self.qk_dim),
-                             persistent=False)
-        self.register_buffer("v_cache",
-                             torch.zeros(args.max_batch_size, args.max_seq_len, self.n_head, self.v_dim),
-                             persistent=False)
-
     
 
-    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor,pos_embedding:torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor,pos_embedding:torch.Tensor,past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+                use_cache=False) -> torch.Tensor:
         batch_size, sequence_len, _ = x.size()
         end_pos = start_pos + sequence_len
-        # 裁剪pos_embedding head,seq_len,seq_len
-        pos_embedding_temp = pos_embedding[:, start_pos:end_pos, start_pos:end_pos]
+        # 裁剪pos_embedding head,seq_len,seq_len  从cpu到gpu节省显存
+        pos_embedding_temp = pos_embedding[:, start_pos:end_pos, start_pos:end_pos].to(x.device)
         q = self.wq(x)
         k = self.wk(x)
+        v = self.wv(x)
 
+        # batch,seq_len,head,v_dim
         q = q.view(batch_size, sequence_len, self.n_head, self.qk_dim)
         k = k.view(batch_size, sequence_len, self.n_head, self.qk_dim)
+        v = v.view(batch_size, sequence_len, self.n_head, self.v_dim)
+                
+        # kv_cache实现
+        if past_key_value is not None:
+            k = torch.cat([past_key_value[0], k], dim=1)
+            v = torch.cat([past_key_value[1], v], dim=1)
+        past_kv = (k, v) if use_cache else None
 
         #         batch,seq_len,head,qk_dim
         score = torch.einsum('bshk,bShk->bhsS', q, k)
@@ -79,18 +98,15 @@ class MHA(nn.Module):
 
         #  batch,head,seq_len,seq_len
         if mask is not None:
-            score += mask
+            score += mask[:sequence_len,:sequence_len]
         score = score.softmax(dim=-1).type_as(x)
 
-        v = self.wv(x)
-        # batch,seq_len,head,v_dim
-        v = v.view(batch_size, sequence_len, self.n_head, self.v_dim)
 
         # v * score
-        out = torch.einsum('bhsS,bshv->bShv', score, v)
+        out = torch.einsum('bhsS,bShv->bshv', score, v)
         # batch,seq_len,dim
         out = self.wo(out.flatten(2))
-        return out
+        return out, past_kv
 
 
 class Gate(torch.nn.Module):
@@ -104,8 +120,8 @@ class Gate(torch.nn.Module):
         self.top_k = args.n_activated_experts
         self.n_groups = args.n_expert_groups
         self.score_func = args.score_func
-        self.weight = nn.Parameter(torch.randn(args.n_routed_experts, args.embedding_dim))
-        self.bias = nn.Parameter(torch.randn(args.n_routed_experts))
+        self.weight = nn.Parameter(torch.randn(args.n_expert_groups, args.embedding_dim))
+        self.bias = nn.Parameter(torch.randn(args.n_expert_groups))
 
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
         bsz, seq_len, h = x.shape
@@ -179,7 +195,7 @@ class MoE(nn.Module):
         self.n_expert_groups = args.n_expert_groups
         self.n_activated_experts=args.n_activated_experts
         self.experts = nn.ModuleList(
-            [Expert(args.embedding_dim, args.moe_inter_dim) for _ in range(args.n_routed_experts)])
+            [Expert(args.embedding_dim, args.moe_inter_dim) for _ in range(args.n_expert_groups)])
         self.shared_experts = MLP(args.embedding_dim, args.n_shared_experts * args.moe_inter_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -244,17 +260,18 @@ class Block(nn.Module):
         self.attn_norm = RMSNormLayer(args.embedding_dim)
         self.ffn_norm = RMSNormLayer(args.embedding_dim)
 
-    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor, pos_embedding: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor, pos_embedding: torch.Tensor, past_key_value = None, use_cache: bool = False,) -> torch.Tensor:
         """
 
         :param x:
         :return:
         """
         # batch,seq_len,dim
-        x = x + self.attn(self.attn_norm(x), start_pos, mask, pos_embedding)
+        h_att, past_kv = self.attn(self.attn_norm(x), start_pos, mask, pos_embedding, past_key_value=past_key_value, use_cache=use_cache)
+        x = x + h_att
         # batch, seq_len, dim
         x = x + self.moe(self.ffn_norm(x))
-        return x
+        return x , past_kv
 
 
 class RMSNormLayer(nn.Module):
@@ -268,40 +285,52 @@ class RMSNormLayer(nn.Module):
         return torch.nn.functional.layer_norm(x, [self.dim], self.weight,None, self.eps)
 
 
-class Model(torch.nn.Module):
+class Model(PreTrainedModel):
+    config_class = ModelArgs
     """
     主要模型类
     """
 
     def __init__(self, args: ModelArgs):
-        super().__init__()
+        super().__init__(args)
         self.embedding = nn.Embedding(args.vocab_size, args.embedding_dim)
         self.blocks = torch.nn.ModuleList()
         for i in range(args.block_size):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
-        self.alibi = self.get_position_embedding(512, args.num_heads, args.device)
+        print("初始化position embedding")
+        self.alibi = self.get_position_embedding(args.max_seq_len, args.num_heads, torch.device("cpu"))
+        print("结束初始化position embedding")
+        self.mask = torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device).triu_(1)
+        
+        self.OUT = CausalLMOutputWithPast()
         
 
-    def forward(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
+    def forward(self, input_ids: Optional[torch.Tensor] = None, start_pos: int = 0,past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
+                use_cache: bool = False,
+                **args) -> torch.Tensor:
         """
         主model
         :param start_pos:
         :param tokens:
         :return:
         """
-        seqlen = tokens.size(1)
-        output = self.embedding(tokens)
-        mask = torch.full((seqlen, seqlen), float("-inf"),device=tokens.device).triu_(1)
-
-        for block in self.blocks:
-            output = block(output, start_pos, mask, self.alibi)
+        past_key_values = past_key_values or [None] * len(self.blocks)
+        
+        output = self.embedding(input_ids)
+        past_kvs = []
+        for i,block in enumerate(self.blocks):
+            output, past_kv = block(output, start_pos, self.mask, self.alibi ,past_key_value = past_key_values[i], use_cache = use_cache)
+            past_kvs.append(past_kv)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len,vocab_size
         logits = self.linear(output)
         aux_loss = sum(l.moe.aux_loss for l in self.blocks)
-        return logits, aux_loss
+        self.OUT.__setitem__('logits', logits)
+        self.OUT.__setitem__('aux_loss', aux_loss)
+        self.OUT.__setitem__('past_key_values', past_kvs)
+        return self.OUT
     
 
     def get_position_embedding(self, seq_len: int, head_num: int, device) -> torch.Tensor:
@@ -328,13 +357,14 @@ class Model(torch.nn.Module):
         :return:
         """
         seq_len=tokens.size(-1)
-        input_vector = self.embedding(tokens)
+        output = self.embedding(tokens)
         mask = torch.full((seq_len, seq_len), float("-inf")).triu_(1)
         for block in self.blocks:
-            output = block(input_vector, start_pos, mask)
-        output = self.rms_norm_layer(output)[:, -1]
-        # batch_size,1，vocab_size
+            output = block(output, start_pos, mask ,self.alibi)
+        output = self.rms_norm_layer(output)
+        # batch_size,seq_len，vocab_size
         logits = self.linear(output)
+        logits = logits[:, -1, :]
         return logits
     
     @staticmethod
