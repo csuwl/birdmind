@@ -18,7 +18,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     model.to(args.device)
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -26,13 +26,13 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             optimizer.zero_grad()
             
             x, y, loss_mask = data
-            x.to(args.device)
-            y.to(args.device)
-            loss_mask.to(args.device)
-            
+            x = x.to(args.device)
+            y = y.to(args.device)
+            loss_mask = loss_mask.to(args.device)
             
             seq_len = x.shape[1]
-            out, aux_loss = model.forward(x, 0)
+            res = model.forward(x,0)
+            out, aux_loss = res.logits, res.aux_loss
             token_id_out = out.argmax(2)
 
             print(tokenizer.decode(token_id_out[0].tolist()))
@@ -60,6 +60,7 @@ if __name__ == '__main__':
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # device = torch.device("cpu")
+    print(device)
     
     if torch.cuda.is_available():
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -74,6 +75,6 @@ if __name__ == '__main__':
     train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
 
     batch_size = 32
-    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
+    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=12)
 
     train(batch_size, model, dataLoader, args)
