@@ -15,10 +15,9 @@ from dataprocess.PretrainDataSet import PretrainDataset
 
 def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2):
     model.train()
-    model.to(args.device)
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -26,9 +25,9 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             optimizer.zero_grad()
             
             x, y, loss_mask = data
-            x.to(args.device)
-            y.to(args.device)
-            loss_mask.to(args.device)
+            x = x.to(args.device)
+            y = y.to(args.device)
+            loss_mask = loss_mask.to(args.device)
             
             
             seq_len = x.shape[1]
@@ -41,7 +40,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss = torch.nn.functional.cross_entropy(out, y)
 
             loss = (loss * loss_mask).sum() / loss_mask.sum()
-            loss += aux_loss 
+            loss += aux_loss * 0.005
             print(loss)
             loss.backward()
             optimizer.step()
@@ -55,15 +54,15 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
 if __name__ == '__main__':
     
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     
-    # if torch.cuda.is_available():
-    #     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    #     print("use cuda")
-    # else:
-    #     os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    #     print("use cpu")
+    if torch.cuda.is_available():
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        print("use cuda")
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        print("use cpu")
 
     args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
     tokenizer, model = Model.init_model(args)

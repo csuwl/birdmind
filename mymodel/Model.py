@@ -75,6 +75,7 @@ class MHA(nn.Module):
         end_pos = start_pos + sequence_len
         # 裁剪pos_embedding head,seq_len,seq_len  从cpu到gpu节省显存
         pos_embedding_temp = pos_embedding[:, start_pos:end_pos, start_pos:end_pos].to(x.device)
+        pos_embedding_temp.requires_grad=False
         q = self.wq(x)
         k = self.wk(x)
         v = self.wv(x)
@@ -300,9 +301,9 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        self.alibi = self.get_position_embedding(args.max_seq_len, args.num_heads, torch.device("cpu"))
+        self.alibi = self.get_position_embedding(512, args.num_heads, torch.device("cpu"))
         print("结束初始化position embedding")
-        self.mask = torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device).triu_(1)
+        self.mask = torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1)
         
         self.OUT = CausalLMOutputWithPast()
         
@@ -345,7 +346,7 @@ class Model(PreTrainedModel):
                 for j in range(seq_len):
                     if i < j:
                         continue
-                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)))
+                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),device=device,requires_grad=False)
         return position
 
     @torch.inference_mode()
@@ -375,6 +376,7 @@ class Model(PreTrainedModel):
         if os.path.exists("./model.pth"):
             model.load_state_dict(torch.load("./model.pth"))
         print(model)
+        model.to(args.device)
         
         print(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
         
