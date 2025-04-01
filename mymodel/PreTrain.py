@@ -78,6 +78,6 @@ if __name__ == '__main__':
     train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
 
     batch_size = 32
-    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=12)
+    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
     train(batch_size, model, dataLoader, args)
