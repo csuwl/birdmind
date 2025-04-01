@@ -22,7 +22,6 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     for epoch in range(epoch_num):
         print("epoch:", epoch)
         for batch_idx, data in enumerate(train_loader):
-            optimizer.zero_grad()
             
             x, y, loss_mask = data
             x = x.to(args.device)
@@ -42,8 +41,15 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss = (loss * loss_mask).sum() / loss_mask.sum()
             loss += aux_loss * 0.005
             print(loss)
+            # 梯度累计
+            loss = loss / 8
             loss.backward()
-            optimizer.step()
+
+
+            if (batch_idx + 1) % 8 == 0:
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                print("梯度更新")
 
             if batch_idx % 50 == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
