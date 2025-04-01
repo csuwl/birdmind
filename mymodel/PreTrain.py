@@ -30,14 +30,16 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             
             
             seq_len = x.shape[1]
-            
             res = model.forward(x,0)
             out, aux_loss = res.logits, res.aux_loss
-            
+            token_id_out = out.argmax(2)
+
+            print(tokenizer.decode(token_id_out[0].tolist()))
+
             out = out.view(batch_size * seq_len, args.vocab_size)
             y = y.view(batch_size * seq_len)
             loss = torch.nn.functional.cross_entropy(out, y)
-
+            
             loss = (loss * loss_mask).sum() / loss_mask.sum()
             loss += aux_loss * 0.005
             print(loss)
@@ -76,6 +78,6 @@ if __name__ == '__main__':
     train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
 
     batch_size = 32
-    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
+    dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=12)
 
     train(batch_size, model, dataLoader, args)

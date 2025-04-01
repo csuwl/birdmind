@@ -15,7 +15,7 @@ class ModelArgs(PretrainedConfig):
     model_type = "birdmind"
     
     def __init__(self, *,
-                 device =torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
                  vocab_size: int = 6400,
                  embedding_dim: int = 512,
                  block_size: int = 8, 
@@ -318,7 +318,6 @@ class Model(PreTrainedModel):
         :return:
         """
         past_key_values = past_key_values or [None] * len(self.blocks)
-        
         output = self.embedding(input_ids)
         past_kvs = []
         for i,block in enumerate(self.blocks):
