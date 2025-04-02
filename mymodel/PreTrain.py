@@ -66,10 +66,8 @@ if __name__ == '__main__':
     # device = torch.device("cpu")
     
     if torch.cuda.is_available():
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         print("use cuda")
     else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
         print("use cpu")
 
     args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
