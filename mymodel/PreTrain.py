@@ -36,8 +36,8 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
             print(tokenizer.decode(token_id_out[0].tolist()))
 
-            out = out.view(batch_size * seq_len, args.vocab_size)
-            y = y.view(batch_size * seq_len)
+            out = out.view(-1, out.size(-1))
+            y = y.view(-1)
             loss = torch.nn.functional.cross_entropy(out, y)
             
             loss = (loss * loss_mask).sum() / loss_mask.sum()
