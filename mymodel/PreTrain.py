@@ -42,7 +42,8 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             
             loss = (loss * loss_mask).sum() / loss_mask.sum()
             loss += aux_loss * 0.01
-            print(loss)
+            print("auxloss:",aux_loss)
+            print("总loss:",loss)
             # 梯度累计
             loss = loss / 8
             loss.backward()
