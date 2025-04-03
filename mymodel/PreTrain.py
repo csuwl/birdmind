@@ -1,6 +1,7 @@
 import os
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
@@ -18,6 +19,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
+    loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -36,10 +38,9 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
             print(tokenizer.decode(token_id_out[0].tolist()))
 
-            out = out.view(-1, out.size(-1))
-            y = y.view(-1)
-            loss = torch.nn.functional.cross_entropy(out, y)
-            
+            loss = loss_fct(out.view(-1, out.size(-1)), y.view(-1))
+            loss = loss.view(y.size())
+
             loss = (loss * loss_mask).sum() / loss_mask.sum()
             loss += aux_loss * 0.01
             print("auxloss:",aux_loss)
