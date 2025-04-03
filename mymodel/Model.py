@@ -276,14 +276,15 @@ class Block(nn.Module):
 
 
 class RMSNormLayer(nn.Module):
-    def __init__(self, dim, eps=1e-8):
+
+    def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()
-        self.eps = eps
         self.dim = dim
+        self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
 
-    def forward(self, x):
-        return torch.nn.functional.layer_norm(x, [self.dim], self.weight,None, self.eps)
+    def forward(self, x: torch.Tensor):
+        return F.rms_norm(x, (self.dim,), self.weight, self.eps)
 
 
 class Model(PreTrainedModel):

@@ -17,7 +17,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     model.train()
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -41,7 +41,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss = torch.nn.functional.cross_entropy(out, y)
             
             loss = (loss * loss_mask).sum() / loss_mask.sum()
-            loss += aux_loss * 0.005
+            loss += aux_loss * 0.01
             print(loss)
             # 梯度累计
             loss = loss / 8
@@ -67,6 +67,8 @@ if __name__ == '__main__':
     
     if torch.cuda.is_available():
         print("use cuda")
+        print(torch.__version__)
+        print(torch.version.cuda)
     else:
         print("use cpu")
 
