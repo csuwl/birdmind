@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 
 from Model import ModelArgs, Model
 
-from dataprocess.PretrainDataSet import PretrainDataset
+from dataprocess.SFTDataSet import SFTDataset
 from contextlib import nullcontext
 
 """
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
     tokenizer, model = Model.init_model(args)
     
-    train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
+    train_data = SFTDataset("../sft_mini_512.jsonl", tokenizer)
 
     batch_size = 32
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
