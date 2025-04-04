@@ -1,14 +1,13 @@
 import torch
 from transformers import AutoTokenizer
 
-from mymodel.Model import Model, ModelArgs
+from Model import Model, ModelArgs
 
 
 def generate(tokenizer , model:Model ,str, max_seq_len):
     tokens = tokenizer(
         str,
         max_length=512,
-        padding='max_length',
         truncation=True,
         return_tensors='pt'
     ).input_ids
@@ -26,13 +25,18 @@ def generate(tokenizer , model:Model ,str, max_seq_len):
     print(tokenizer.decode(tokens.tolist()))
 
 if __name__ == '__main__':
-    tokenizer = AutoTokenizer.from_pretrained('./minimind_tokenizer')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
+    
+    if torch.cuda.is_available():
+        print("use cuda")
+        print(torch.__version__)
+        print(torch.version.cuda)
+    else:
+        print("use cpu")
 
-    vocab_size = 6400
-    args = ModelArgs(vocab_size=vocab_size, embedding_dim=512)
-    model = Model(args)
-
-    model.load_state_dict(torch.load('./model.pth'))
+    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
+    tokenizer, model = Model.init_model(args,"./sft_model.pth")
 
 
 

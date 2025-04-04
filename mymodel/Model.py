@@ -302,7 +302,7 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        self.alibi = self.get_position_embedding(512, args.num_heads, torch.device("cpu"))
+        self.alibi = self.get_position_embedding(1024, args.num_heads, torch.device("cpu"))
         print("结束初始化position embedding")
         self.mask = torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1)
         
@@ -357,11 +357,12 @@ class Model(PreTrainedModel):
         :param tokens:
         :return:
         """
-        seq_len=tokens.size(-1)
+        tokens.to(self.mask.device)
+        
         output = self.embedding(tokens)
-        mask = torch.full((seq_len, seq_len), float("-inf")).triu_(1)
+       
         for block in self.blocks:
-            output = block(output, start_pos, mask ,self.alibi)
+            output = block(output, start_pos, self.mask ,self.alibi)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len，vocab_size
         logits = self.linear(output)
@@ -369,12 +370,12 @@ class Model(PreTrainedModel):
         return logits
     
     @staticmethod
-    def init_model(args: ModelArgs):
+    def init_model(args: ModelArgs,load_path:str = "./model.pth" ):
         tokenizer = AutoTokenizer.from_pretrained('./minimind_tokenizer')
         
         model = Model(args)
-        if os.path.exists("./model.pth"):
-            model.load_state_dict(torch.load("./model.pth"))
+        if os.path.exists(load_path):
+            model.load_state_dict(torch.load(load_path))
         print(model)
         model.to(args.device)
         

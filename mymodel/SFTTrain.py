@@ -20,7 +20,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00001, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
@@ -44,7 +44,8 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
                 loss = loss.view(y.size())
 
                 loss = (loss * loss_mask).sum() / loss_mask.sum()
-                loss += aux_loss * 0.05
+                print('loss:',loss)
+                loss += aux_loss * 0.1
                 print("auxloss:",aux_loss)
                 print("总loss:",loss)
                 # 梯度累计
@@ -65,7 +66,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             if batch_idx % 50 == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
             if batch_idx % 100 == 0:
-                torch.save(model.state_dict(), "./model.pth")
+                torch.save(model.state_dict(), "./sft_model.pth")
 
 
 
@@ -82,11 +83,11 @@ if __name__ == '__main__':
         print("use cpu")
 
     args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
-    tokenizer, model = Model.init_model(args)
+    tokenizer, model = Model.init_model(args,"./sft_model.pt")
     
     train_data = SFTDataset("../sft_mini_512.jsonl", tokenizer)
 
-    batch_size = 32
+    batch_size = 15
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
     train(batch_size, model, dataLoader, args)
