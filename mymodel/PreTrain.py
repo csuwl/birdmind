@@ -8,14 +8,16 @@ from transformers import AutoTokenizer
 from Model import ModelArgs, Model
 
 from dataprocess.PretrainDataSet import PretrainDataset
+from contextlib import nullcontext
 
 """
 训练
 """
 
 
-def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2):
-    model.train()
+def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
+    ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
+    scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0005, weight_decay=0.01)
@@ -30,31 +32,34 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             y = y.to(args.device)
             loss_mask = loss_mask.to(args.device)
             
-            
-            seq_len = x.shape[1]
-            res = model.forward(x,0)
-            out, aux_loss = res.logits, res.aux_loss
-            token_id_out = out.argmax(2)
+            with ctx:
+                res = model.forward(x,0)
+                out, aux_loss = res.logits, res.aux_loss
+                token_id_out = out.argmax(2)
 
-            print(token_id_out[0].tolist())
-            print(tokenizer.decode(token_id_out[0].tolist()))
+                print(token_id_out[0].tolist())
+                print(tokenizer.decode(token_id_out[0].tolist()))
 
-            loss = loss_fct(out.view(-1, out.size(-1)), y.view(-1))
-            loss = loss.view(y.size())
+                loss = loss_fct(out.view(-1, out.size(-1)), y.view(-1))
+                loss = loss.view(y.size())
 
-            loss = (loss * loss_mask).sum() / loss_mask.sum()
-            loss += aux_loss * 0.1
-            print("auxloss:",aux_loss)
-            print("总loss:",loss)
-            # 梯度累计
-            loss = loss / 8
-            loss.backward()
+                loss = (loss * loss_mask).sum() / loss_mask.sum()
+                loss += aux_loss * 0.1
+                print("auxloss:",aux_loss)
+                print("总loss:",loss)
+                # 梯度累计
+                loss = loss / accmulation
+
+            scaler.scale(loss).backward()
 
 
-            if (batch_idx + 1) % 8 == 0:
+            if (batch_idx + 1) % accmulation == 0:
+                scaler.unscale_(optimizer)
+                # 梯度裁剪
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
+
+                scaler.step(optimizer)  # 替代 optimizer.step()
+                scaler.update()  # 调整缩放因子，准备下一轮
                 print("梯度更新")
 
             if batch_idx % 50 == 0:
