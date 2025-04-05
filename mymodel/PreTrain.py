@@ -20,7 +20,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
@@ -43,7 +43,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
                 loss = loss.view(y.size())
 
                 loss = (loss * loss_mask).sum() / loss_mask.sum()
-                loss += aux_loss * 0.05
+                loss += aux_loss * 0.1
                 print("auxloss:",aux_loss)
                 print("总loss:",loss)
                 # 梯度累计
