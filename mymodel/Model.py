@@ -58,6 +58,7 @@ class MHA(nn.Module):
 
     def __init__(self, layer_id: int, args: ModelArgs):
         super().__init__()
+        self.mha_id = layer_id
         self.dim = args.embedding_dim
         self.n_head = args.num_heads
         self.qk_dim = args.qk_dim
@@ -91,8 +92,7 @@ class MHA(nn.Module):
         #         batch,seq_len,head,qk_dim
         score = torch.einsum('bshk,bShk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
-        # add position_embedding
-        # score += pos_embedding[:,score.shape[-1]-1:score.shape[-1]-1+score.shape[2],:score.shape[-1]]
+        
         score += pos_embedding
 
         #  batch,head,seq_len,seq_len
@@ -254,6 +254,7 @@ class Block(nn.Module):
     def __init__(self, layer_id: int, args: ModelArgs):
         super().__init__()
         # attention
+        self.block_id = layer_id
         self.attn = MHA(layer_id, args)
         self.moe = MoE(args)
         self.attn_norm = RMSNormLayer(args.embedding_dim)
@@ -315,8 +316,13 @@ class Model(PreTrainedModel):
         :param tokens:
         :return:
         """
-        pos_cis = self.alibi[:,start_pos:start_pos + input_ids.size(1),start_pos:start_pos+input_ids.size(1)]
-        pos_cis = pos_cis.to(input_ids.device)
+        # if past_key_values is None or len(past_key_values) == 0 or past_key_values[0] is None:
+        #     pos_cis = self.alibi[:,start_pos:start_pos + input_ids.size(1),start_pos:start_pos+input_ids.size(1)]
+        # else:
+        #     k_len = past_key_values[0][0].size(1)
+        #     pos_cis = self.alibi[:,start_pos:start_pos + input_ids.size(1),start_pos:k_len]
+        sequence_len = input_ids.shape[1]
+        pos_cis = self.alibi[:,start_pos:start_pos+sequence_len,:start_pos+sequence_len].to(input_ids.device)
 
         past_key_values = past_key_values or [None] * len(self.blocks)
         output = self.embedding(input_ids)
@@ -419,7 +425,7 @@ class Model(PreTrainedModel):
         output = self.embedding(tokens)
        
         for block in self.blocks:
-            output = block(output, start_pos, self.mask ,self.alibi)
+            output, past_kv = block(output, start_pos, self.mask ,self.alibi)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len，vocab_size
         logits = self.linear(output)

@@ -16,7 +16,7 @@ if __name__=="__main__":
     tokenizer, model = Model.init_model(args)
 
 
-    new_prompt="马克思主义原理"
+    new_prompt="什么山最高"
     answer = new_prompt
     with torch.no_grad():
         x = torch.tensor(tokenizer(new_prompt)['input_ids'], device=args.device).unsqueeze(0)
@@ -36,6 +36,7 @@ if __name__=="__main__":
             for y in outputs:
                 answer = tokenizer.decode(y[0].tolist(), skip_special_tokens=True)
                 if (answer and answer[-1] == '�') or not answer:
+                    print(answer)
                     continue
                 print(answer[history_idx:], end='', flush=True)
                 history_idx = len(answer)

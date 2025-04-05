@@ -15,12 +15,12 @@ from contextlib import nullcontext
 """
 
 
-def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
+def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
     ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
@@ -33,19 +33,14 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss_mask = loss_mask.to(args.device)
             
             with ctx:
-                res = model.forward(x,0)
+                res = model.forward(x)
                 out, aux_loss = res.logits, res.aux_loss
-                token_id_out = out.argmax(2)
-
-                print(tokenizer.decode(token_id_out[0].tolist()))
 
                 loss = loss_fct(out.view(-1, out.size(-1)), y.view(-1))
                 loss = loss.view(y.size())
 
                 loss = (loss * loss_mask).sum() / loss_mask.sum()
                 loss += aux_loss * 0.1
-                print("auxloss:",aux_loss)
-                print("总loss:",loss)
                 # 梯度累计
                 loss = loss / accmulation
 
@@ -53,6 +48,11 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
 
 
             if (batch_idx + 1) % accmulation == 0:
+                token_id_out = out.argmax(2)
+                print(tokenizer.decode(token_id_out[0].tolist()))
+                print("auxloss:",aux_loss)
+                print("总loss:",loss)
+
                 scaler.unscale_(optimizer)
                 # 梯度裁剪
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     
     train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
 
-    batch_size = 32
+    batch_size = 28
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(batch_size, model, dataLoader, args)
+    train(model, dataLoader, args)

@@ -15,7 +15,7 @@ from contextlib import nullcontext
 """
 
 
-def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
+def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
     ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     
@@ -33,7 +33,7 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
             loss_mask = loss_mask.to(args.device)
             
             with ctx:
-                res = model.forward(x,0)
+                res = model.forward(x)
                 out, aux_loss = res.logits, res.aux_loss
                 token_id_out = out.argmax(2)
 
@@ -90,4 +90,4 @@ if __name__ == '__main__':
     batch_size = 15
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(batch_size, model, dataLoader, args)
+    train(model, dataLoader, args)
