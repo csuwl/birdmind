@@ -37,7 +37,6 @@ def train(batch_size:int ,model: Model, train_loader: DataLoader, args: ModelArg
                 out, aux_loss = res.logits, res.aux_loss
                 token_id_out = out.argmax(2)
 
-                print(token_id_out[0].tolist())
                 print(tokenizer.decode(token_id_out[0].tolist()))
 
                 loss = loss_fct(out.view(-1, out.size(-1)), y.view(-1))

@@ -72,10 +72,7 @@ class MHA(nn.Module):
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor,pos_embedding:torch.Tensor,past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
                 use_cache=False) -> torch.Tensor:
         batch_size, sequence_len, _ = x.size()
-        end_pos = start_pos + sequence_len
-        # 裁剪pos_embedding head,seq_len,seq_len  从cpu到gpu节省显存
-        pos_embedding_temp = pos_embedding[:, start_pos:end_pos, start_pos:end_pos].to(x.device)
-        pos_embedding_temp.requires_grad=False
+
         q = self.wq(x)
         k = self.wk(x)
         v = self.wv(x)
@@ -95,7 +92,8 @@ class MHA(nn.Module):
         score = torch.einsum('bshk,bShk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
         # add position_embedding
-        score += pos_embedding_temp
+        # score += pos_embedding[:,score.shape[-1]-1:score.shape[-1]-1+score.shape[2],:score.shape[-1]]
+        score += pos_embedding
 
         #  batch,head,seq_len,seq_len
         if mask is not None:
@@ -302,27 +300,29 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        self.alibi = self.get_position_embedding(1024, args.num_heads, torch.device("cpu"))
+        self.register_buffer("alibi",self.get_position_embedding(1024,args.num_heads,torch.device('cpu')),persistent=False)
         print("结束初始化position embedding")
-        self.mask = torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1)
+        self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         
         self.OUT = CausalLMOutputWithPast()
         
 
-    def forward(self, input_ids: Optional[torch.Tensor] = None, start_pos: int = 0,past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
-                use_cache: bool = False,
-                **args) -> torch.Tensor:
+    def forward(self, input_ids: Optional[torch.Tensor] = None, past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
+                use_cache: bool = False, start_pos: int = 0, **args) -> torch.Tensor:
         """
         主model
         :param start_pos:
         :param tokens:
         :return:
         """
+        pos_cis = self.alibi[:,start_pos:start_pos + input_ids.size(1),start_pos:start_pos+input_ids.size(1)]
+        pos_cis = pos_cis.to(input_ids.device)
+
         past_key_values = past_key_values or [None] * len(self.blocks)
         output = self.embedding(input_ids)
         past_kvs = []
         for i,block in enumerate(self.blocks):
-            output, past_kv = block(output, start_pos, self.mask, self.alibi ,past_key_value = past_key_values[i], use_cache = use_cache)
+            output, past_kv = block(output, start_pos, self.mask, pos_cis ,past_key_value = past_key_values[i], use_cache = use_cache)
             past_kvs.append(past_kv)
         output = self.rms_norm_layer(output)
         # batch_size,seq_len,vocab_size
@@ -349,8 +349,65 @@ class Model(PreTrainedModel):
                     position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),device=device,requires_grad=False)
         return position
 
+
+    # 参考 minimind
     @torch.inference_mode()
-    def generate(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
+    def generate(self, input_ids, eos_token_id=2, max_new_tokens=1024, temperature=0.75, top_p=0.90,
+                 stream=False, rp=1., use_cache=True, pad_token_id=0, **args):
+        # 流式生成
+        if stream:
+            return self._stream(input_ids, eos_token_id, max_new_tokens, temperature, top_p, rp, use_cache, **args)
+
+        # 直接生成
+        generated = []
+        for i in range(input_ids.size(0)):
+            non_pad = input_ids[i][input_ids[i] != pad_token_id].unsqueeze(0)
+            out = self._stream(non_pad, eos_token_id, max_new_tokens, temperature, top_p, rp, use_cache, **args)
+            tokens_list = [tokens[:, -1:] for tokens in out]
+            gen = torch.cat(tokens_list, dim=-1) if tokens_list else non_pad
+            full_sequence = torch.cat([non_pad, gen], dim=-1)
+            generated.append(full_sequence)
+        max_length = max(seq.size(1) for seq in generated)
+        generated = [
+            torch.cat(
+                [seq, torch.full((1, max_length - seq.size(1)), pad_token_id, dtype=seq.dtype, device=seq.device)],
+                dim=-1)
+            for seq in generated
+        ]
+        return torch.cat(generated, dim=0)
+
+    def _stream(self, input_ids, eos_token_id, max_new_tokens, temperature, top_p, rp, use_cache, **args):
+        start, first_seq, past_kvs = input_ids.shape[1], True, None
+        while input_ids.shape[1] < max_new_tokens - 1:
+            if first_seq or not use_cache:
+                out, first_seq = self(input_ids, past_key_values=past_kvs, use_cache=use_cache, **args), False
+            else:
+                out = self(input_ids[:, -1:], past_key_values=past_kvs, use_cache=use_cache,
+                           start_pos=input_ids.shape[1] - 1, **args)
+            logits, past_kvs = out.logits[:, -1, :], out.past_key_values
+            logits[:, list(set(input_ids.tolist()[0]))] /= rp
+            logits /= (temperature + 1e-9)
+            if top_p is not None and top_p < 1.0:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
+                sorted_probs = F.softmax(sorted_logits, dim=-1)
+                cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                sorted_indices_to_remove[:, 0] = False
+                indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                logits[indices_to_remove] = -float('Inf')
+            input_ids_next = torch.multinomial(F.softmax(logits, dim=-1), num_samples=1)
+            input_ids = torch.cat((input_ids, input_ids_next), dim=1)
+            yield input_ids[:, start:]
+            if input_ids_next.item() == eos_token_id:
+                break
+
+
+
+
+
+    @torch.inference_mode()
+    def generate_my(self, tokens: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
         """
         主model
         :param start_pos:
@@ -358,7 +415,7 @@ class Model(PreTrainedModel):
         :return:
         """
         tokens.to(self.mask.device)
-        
+
         output = self.embedding(tokens)
        
         for block in self.blocks:
