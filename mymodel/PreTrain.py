@@ -16,6 +16,7 @@ from contextlib import nullcontext
 
 
 def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
+    model.train()
     ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     

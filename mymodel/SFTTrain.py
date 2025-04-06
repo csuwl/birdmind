@@ -16,6 +16,7 @@ from contextlib import nullcontext
 
 
 def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 12):
+    model.train()
     ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
     
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     
     train_data = SFTDataset("../sft_mini_512.jsonl", tokenizer)
 
-    batch_size = 10
+    batch_size = 1
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(model, dataLoader, args)
+    train(model, dataLoader, args, accmulation=120)

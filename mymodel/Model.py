@@ -301,7 +301,10 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cpu')),persistent=False)
+        if self.train:
+            self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cuda')),persistent=False)
+        else:
+            self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cpu')),persistent=False)
         print("结束初始化position embedding")
         self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         
@@ -322,7 +325,10 @@ class Model(PreTrainedModel):
         #     k_len = past_key_values[0][0].size(1)
         #     pos_cis = self.alibi[:,start_pos:start_pos + input_ids.size(1),start_pos:k_len]
         sequence_len = input_ids.shape[1]
-        pos_cis = self.alibi[:,start_pos:start_pos+sequence_len,:start_pos+sequence_len].to(input_ids.device)
+        if self.train:
+            pos_cis = self.alibi[:,start_pos:start_pos+sequence_len,:start_pos+sequence_len]
+        else:
+            pos_cis = self.alibi[:,start_pos:start_pos+sequence_len,:start_pos+sequence_len].to(input_ids.device)
 
         past_key_values = past_key_values or [None] * len(self.blocks)
         output = self.embedding(input_ids)
