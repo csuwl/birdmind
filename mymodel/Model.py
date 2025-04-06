@@ -301,7 +301,7 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        self.register_buffer("alibi",self.get_position_embedding(1024,args.num_heads,torch.device('cpu')),persistent=False)
+        self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cpu')),persistent=False)
         print("结束初始化position embedding")
         self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         

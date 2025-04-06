@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 
 from Model import ModelArgs, Model
 
-from dataprocess.SFTDataSet import SFTDataset
+from dataprocess.DistillR1DataSet import DistillR1Dataset
 from contextlib import nullcontext
 
 """
@@ -22,6 +22,11 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: in
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
+    # 思考标签占位符
+    start_of_think_ids = tokenizer('<think>').input_ids
+    end_of_think_ids = tokenizer('</think>').input_ids
+    start_of_answer_ids = tokenizer('<answer>').input_ids
+    end_of_answer_ids = tokenizer('</answer>').input_ids
 
     for epoch in range(epoch_num):
         print("epoch:", epoch)
@@ -38,7 +43,18 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: in
                 loss = loss_fct(out.view(-1, out.size(-1)), y.view(-1))
                 loss = loss.view(y.size())
 
-                loss = (loss * loss_mask).sum() / loss_mask.sum()
+                # 在 sp_ids 对应的位置增加额外的惩罚
+                sp_ids = torch.isin(y.view(-1),
+                                torch.tensor(start_of_think_ids + end_of_think_ids
+                                             + start_of_answer_ids + end_of_answer_ids
+                                             ).to(args.device))
+
+                loss_mask = loss_mask.view(-1)
+                loss_mask_sum = loss_mask.sum()
+                loss_mask[sp_ids] = 5
+                loss_mask = loss_mask.view(y.size())
+                loss = (loss * loss_mask).sum() / loss_mask_sum
+
                 loss += aux_loss * 0.1
                 # 梯度累计
                 loss = loss / accmulation
@@ -63,7 +79,7 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: in
             if batch_idx % 50 == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
             if batch_idx % 100 == 0:
-                torch.save(model.state_dict(), "./sft_model.pth")
+                torch.save(model.state_dict(), "./sft_r1_model.pth")
 
 
 
@@ -82,7 +98,7 @@ if __name__ == '__main__':
     args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
     tokenizer, model = Model.init_model(args,"./sft_model.pth")
     
-    train_data = SFTDataset("../sft_mini_512.jsonl", tokenizer)
+    train_data = DistillR1Dataset("../distill_r1_110k.jsonl", tokenizer)
 
     batch_size = 10
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
