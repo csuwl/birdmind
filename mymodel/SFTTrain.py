@@ -80,12 +80,12 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
+    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512,train=True)
     tokenizer, model = Model.init_model(args,"./sft_model.pth")
     
     train_data = SFTDataset("../sft_mini_512.jsonl", tokenizer)
 
-    batch_size = 1
+    batch_size = 10
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(model, dataLoader, args, accmulation=120)
+    train(model, dataLoader, args)

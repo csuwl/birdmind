@@ -96,12 +96,12 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
+    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512,train=True)
     tokenizer, model = Model.init_model(args,"./sft_model.pth")
     
     train_data = DistillR1Dataset("../distill_r1_110k.jsonl", tokenizer)
 
-    batch_size = 10
+    batch_size = 5
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(model, dataLoader, args, accmulation=12)
+    train(model, dataLoader, args, accmulation=24)

@@ -81,7 +81,7 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
+    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512,train=True)
     tokenizer, model = Model.init_model(args)
     
     train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)

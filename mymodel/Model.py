@@ -28,6 +28,7 @@ class ModelArgs(PretrainedConfig):
                  n_shared_experts: int = 2,
                  n_activated_experts: int = 2,
                  score_func: Literal["softmax", "sigmoid"] = "softmax",
+                 train:bool,
                  **kwargs):
         
         self.device: Any = device
@@ -47,7 +48,7 @@ class ModelArgs(PretrainedConfig):
         self.n_shared_experts: int = n_shared_experts
         self.n_activated_experts: int = n_activated_experts
         self.score_func: Literal["softmax", "sigmoid"] = score_func
-        
+        self.train = train
         super().__init__(**kwargs)
 
 
@@ -294,6 +295,8 @@ class Model(PreTrainedModel):
 
     def __init__(self, args: ModelArgs):
         super().__init__(args)
+        if args.train:
+            self.train()
         self.embedding = nn.Embedding(args.vocab_size, args.embedding_dim)
         self.blocks = torch.nn.ModuleList()
         for i in range(args.block_size):
@@ -301,7 +304,7 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        if self.train:
+        if self.training:
             self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cuda')),persistent=False)
         else:
             self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cpu')),persistent=False)
@@ -325,7 +328,7 @@ class Model(PreTrainedModel):
         #     k_len = past_key_values[0][0].size(1)
         #     pos_cis = self.alibi[:,start_pos:start_pos + input_ids.size(1),start_pos:k_len]
         sequence_len = input_ids.shape[1]
-        if self.train:
+        if self.training:
             pos_cis = self.alibi[:,start_pos:start_pos+sequence_len,:start_pos+sequence_len]
         else:
             pos_cis = self.alibi[:,start_pos:start_pos+sequence_len,:start_pos+sequence_len].to(input_ids.device)
