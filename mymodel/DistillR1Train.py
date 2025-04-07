@@ -101,7 +101,7 @@ if __name__ == '__main__':
     
     train_data = DistillR1Dataset("../distill_r1_110k.jsonl", tokenizer)
 
-    batch_size = 5
+    batch_size = 1
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(model, dataLoader, args, accmulation=24)
+    train(model, dataLoader, args, accmulation=120)
