@@ -1,0 +1,16 @@
+mymodel/dataprocess/__pycache__/__init__.cpython-312.pyc
+mymodel/dataprocess/__pycache__/DistillR1DataSet.cpython-312.pyc
+mymodel/dataprocess/__pycache__/PretrainDataSet.cpython-312.pyc
+mymodel/dataprocess/__pycache__/SFTDataSet.cpython-312.pyc
+mymodel/__pycache__/Model.cpython-312.pyc
+pretrain_hq.jsonl
+distill_r1_110k.jsonl
+position_embedding.pkl
+r1_mix_1024.jsonl
+sft_mini_512.jsonl
+mymodel/Test.py
+mymodel/TestModel.py
+mymodel/model_back.pth
+mymodel/model.pth
+mymodel/sft_model.pth
+mymodel/sft_r1_model.pth

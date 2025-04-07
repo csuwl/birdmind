@@ -8,6 +8,7 @@ from torch.cuda.amp import autocast
 from transformers import AutoTokenizer,PretrainedConfig,PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 import os
+import dill
 
 
 @dataclass
@@ -304,10 +305,19 @@ class Model(PreTrainedModel):
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
         print("初始化position embedding")
-        if self.training:
-            self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cuda')),persistent=False)
+        if self.training and torch.cuda.is_available():
+            device = torch.device("cuda")
         else:
-            self.register_buffer("alibi",self.get_position_embedding(args.max_seq_len,args.num_heads,torch.device('cpu')),persistent=False)
+            device = torch.device("cpu")
+
+        if os.path.exists("./position_embedding.pkl"):
+            print("加载possition_embedding缓存")
+            temp_position_embedding = dill.load(open("./position_embedding.pkl",'rb'))
+        else:
+            print("计算position_embedding")
+            temp_position_embedding = self.get_position_embedding(args.max_seq_len,args.num_heads,device=device)
+            dill.dump(temp_position_embedding,open("./position_embedding.pkl",'wb'))
+        self.register_buffer("alibi",temp_position_embedding,persistent=False)
         print("结束初始化position embedding")
         self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         
