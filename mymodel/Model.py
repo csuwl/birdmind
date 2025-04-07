@@ -28,7 +28,7 @@ class ModelArgs(PretrainedConfig):
                  n_shared_experts: int = 2,
                  n_activated_experts: int = 2,
                  score_func: Literal["softmax", "sigmoid"] = "softmax",
-                 train:bool,
+                 train:bool=False,
                  **kwargs):
         
         self.device: Any = device

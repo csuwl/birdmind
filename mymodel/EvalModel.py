@@ -13,7 +13,7 @@ if __name__=="__main__":
         print("use cpu")
 
     args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
-    tokenizer, model = Model.init_model(args,'./sft_model.pth')
+    tokenizer, model = Model.init_model(args,'./sft_r1_model.pth')
 
 
     for index, prompt in enumerate(iter(lambda: input('请输入:'),'')):
