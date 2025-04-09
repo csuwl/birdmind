@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 from Model import ModelArgs, Model
 
 from dataprocess.PretrainDataSet import PretrainDataset
+from dataprocess.Pretrain2048DataSet import Pretrain2048Dataset
 from contextlib import nullcontext
 
 """
@@ -15,7 +16,7 @@ from contextlib import nullcontext
 """
 
 
-def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 8):
+def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 100):
     model.train()
     ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
@@ -62,10 +63,11 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: in
                 scaler.update()  # 调整缩放因子，准备下一轮
                 print("梯度更新")
 
-            if batch_idx % 50 == 0:
+            if (batch_idx+1) % (10*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
-            if batch_idx % 100 == 0:
-                torch.save(model.state_dict(), "./model.pth")
+                torch.save(model.state_dict(), "./model_16.pth")
+            # if batch_idx % (10*accmulation) == 0:
+    torch.save(model.state_dict(), "./model_16.pth")
 
 
 
@@ -81,12 +83,13 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512,train=True)
-    tokenizer, model = Model.init_model(args)
+    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512,block_size=16,train=True)
+    tokenizer, model = Model.init_model(args,"./model_16.pth")
     
-    train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
+    # train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
+    train_data = Pretrain2048Dataset("../sft_2048.jsonl",tokenizer)
 
-    batch_size = 32
+    batch_size = 2
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
     train(model, dataLoader, args)
