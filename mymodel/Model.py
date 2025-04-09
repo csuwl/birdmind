@@ -17,7 +17,7 @@ class ModelArgs(PretrainedConfig):
     
     def __init__(self, *,
                  device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-                 vocab_size: int = 6400,
+                 vocab_size: int = 10000,
                  embedding_dim: int = 512,
                  block_size: int = 9, 
                  max_seq_len: int = 4096,
@@ -453,7 +453,7 @@ class Model(PreTrainedModel):
     
     @staticmethod
     def init_model(args: ModelArgs,load_path:str = "./model.pth" ):
-        tokenizer = AutoTokenizer.from_pretrained('./minimind_tokenizer')
+        tokenizer = AutoTokenizer.from_pretrained('./birdmind_tokenizer')
         
         model = Model(args)
         if os.path.exists(load_path):

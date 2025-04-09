@@ -16,7 +16,7 @@ from contextlib import nullcontext
 """
 
 
-def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 100):
+def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 150):
     model.train()
     ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
@@ -65,9 +65,9 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: in
 
             if (batch_idx+1) % (10*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
-                torch.save(model.state_dict(), "./model_16.pth")
+                torch.save(model.state_dict(), "./model_10000.pth")
             # if batch_idx % (10*accmulation) == 0:
-    torch.save(model.state_dict(), "./model_16.pth")
+    torch.save(model.state_dict(), "./model_10000.pth")
 
 
 
@@ -83,8 +83,8 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512,block_size=16,train=True)
-    tokenizer, model = Model.init_model(args,"./model_16.pth")
+    args = ModelArgs(device = device, vocab_size=10000, embedding_dim=512,block_size=16,train=True)
+    tokenizer, model = Model.init_model(args,"./model_10000.pth")
     
     # train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
     train_data = Pretrain2048Dataset("../sft_2048.jsonl",tokenizer)
