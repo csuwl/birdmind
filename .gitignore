@@ -14,3 +14,7 @@ mymodel/model_back.pth
 mymodel/model.pth
 mymodel/sft_model.pth
 mymodel/sft_r1_model.pth
+mymodel/model_16.pth
+mymodel/model_10000.pth
+sft_2048.jsonl
+mymodel/dataprocess/__pycache__/Pretrain2048DataSet.cpython-312.pyc
