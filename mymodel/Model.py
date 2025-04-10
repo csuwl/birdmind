@@ -349,10 +349,13 @@ class Model(PreTrainedModel):
         for i,block in enumerate(self.blocks):
             output, past_kv = block(output, start_pos, self.mask, pos_cis ,past_key_value = past_key_values[i], use_cache = use_cache)
             past_kvs.append(past_kv)
-        output = self.rms_norm_layer(output)
+        # batch_size,seq_len,embedding_dim
+        hidden_states = self.rms_norm_layer(output)
         # batch_size,seq_len,vocab_size
-        logits = self.linear(output)
+        logits = self.linear(hidden_states)
         aux_loss = sum(l.moe.aux_loss for l in self.blocks)
+
+        self.OUT.__setitem__('hidden_states',hidden_states)
         self.OUT.__setitem__('logits', logits)
         self.OUT.__setitem__('aux_loss', aux_loss)
         self.OUT.__setitem__('past_key_values', past_kvs)
