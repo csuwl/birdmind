@@ -2,7 +2,6 @@ import torch
 import dill
 import os
 
-os.environ["HF_ENDPOINT"]="https://hf-mirror.com"
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import AutoConfig, AutoModel
 from BirdMindModel import BirdMindConfig,BirdMindModel
@@ -20,3 +19,5 @@ if __name__ == "__main__":
     birdMindConfig.save_pretrained("./transformers_model/")
     model.save_pretrained("./transformers_model/")
     tokenizer.save_pretrained("./transformers_model/")
+
+    
