@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-from Model import BirdMindConfig, BirdMindModel
+from BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.RewardDataSet import RewardDataSet
 from contextlib import nullcontext
@@ -70,7 +70,7 @@ def train(rewardModel: RewardModel, train_loader: DataLoader, args: BirdMindConf
 
 if __name__ == '__main__':
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # device = torch.device("cpu")
     
     if torch.cuda.is_available():

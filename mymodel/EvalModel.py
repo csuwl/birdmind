@@ -1,8 +1,8 @@
 import torch
-from Model import BirdMindModel,BirdMindConfig
+from BirdMindModel import BirdMindModel,BirdMindConfig
 
 if __name__=="__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # device = torch.device("cpu")
     
     if torch.cuda.is_available():

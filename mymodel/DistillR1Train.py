@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-from Model import BirdMindConfig, BirdMindModel
+from BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.DistillR1DataSet import DistillR1Dataset
 from contextlib import nullcontext
