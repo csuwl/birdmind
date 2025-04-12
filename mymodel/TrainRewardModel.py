@@ -5,11 +5,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-from BirdMindModel import BirdMindConfig, BirdMindModel
+from models.BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.RewardDataSet import RewardDataSet
 from contextlib import nullcontext
-from RewardModel import RewardModel
+from models.RewardModel import RewardModel
 
 """
 训练
