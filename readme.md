@@ -3,7 +3,7 @@ birdmind麻雀虽小，五脏俱全，模型总参数量1.4B,此项目完全从�
 预训练完毕，模型下载地址: https://huggingface.co/csuwl/birdmind
 
 
-## 快速开始
+# 快速开始
 下载模型后使用transformers直接加载运行。
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
