@@ -4,7 +4,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 
 
-class DistillR1Dataset(Dataset):
+class GrpoDataSet(Dataset):
     def __init__(self, jsonl_path, tokenizer, max_length=4096):
         super().__init__()
         self.tokenizer = tokenizer
@@ -58,17 +58,5 @@ class DistillR1Dataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.samples[index]
-        # 构建对话提示
-        prompt = self._create_chat_prompt(sample)
-        input_ids = self.tokenizer(prompt).input_ids[:self.max_length]
-        input_ids += [self.tokenizer.pad_token_id] * (self.max_length - len(input_ids))
-
-        # 生成动态损失掩码
-        loss_mask = self._generate_loss_mask(input_ids)
-
-        # 构建训练数据
-        X = torch.tensor(input_ids[:-1], dtype=torch.long)
-        Y = torch.tensor(input_ids[1:], dtype=torch.long)
-        loss_mask = torch.tensor(loss_mask[1:], dtype=torch.long)  # 对齐预测位置
-
-        return X, Y, loss_mask
+        return {'prompt':sample['input'],'reason':sample['reasoning_content'],'answer':sample['content']}
+       

@@ -22,3 +22,11 @@ mymodel/__pycache__/BirdMindModel.cpython-312.pyc
 mymodel/transformers_model/model.safetensors
 mymodel/DistillR1Train.py
 mymodel/models/__pycache__/BirdMindModel.cpython-312.pyc
+mymodel/output/model_grpo/runs/Apr12_22-12-04_山川/events.out.tfevents.1744467124.山川.32788.0
+mymodel/output/model_grpo/runs/Apr12_22-36-49_山川/events.out.tfevents.1744468610.山川.41764.0
+mymodel/output/model_grpo/runs/Apr12_22-38-05_山川/events.out.tfevents.1744468685.山川.25276.0
+mymodel/output/model_grpo/runs/Apr12_22-43-57_山川/events.out.tfevents.1744469038.山川.43888.0
+mymodel/output/model_grpo/runs/Apr12_22-48-24_山川/events.out.tfevents.1744469304.山川.44348.0
+mymodel/output/model_grpo/runs/Apr12_22-54-34_山川/events.out.tfevents.1744469675.山川.31464.0
+mymodel/dataprocess/__pycache__/GrpoDataSet.cpython-312.pyc
+mymodel/sft_model_10000.pth

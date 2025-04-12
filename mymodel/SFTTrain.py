@@ -15,13 +15,13 @@ from contextlib import nullcontext
 """
 
 
-def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, epoch_num: int = 2, accmulation:int = 12):
+def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, epoch_num: int = 2, accmulation:int = 100):
     model.train()
     ctx = torch.amp.autocast('cuda') if args.device == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00001, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
@@ -64,7 +64,7 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
             if batch_idx % 50 == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
             if batch_idx % 100 == 0:
-                torch.save(model.state_dict(), "./sft_model.pth")
+                torch.save(model.state_dict(), "./sft_model_10000.pth")
 
 
 
@@ -80,12 +80,12 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = BirdMindConfig(device = device, vocab_size=6400, embedding_dim=512,train=True)
-    tokenizer, model = BirdMindModel.init_model(args,"./sft_model.pth")
+    args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512,block_size=16,train=True)
+    tokenizer, model = BirdMindModel.init_model(args,"./model_10000.pth")
     
     train_data = SFTDataset("./dataset/sft_mini_512.jsonl", tokenizer)
 
-    batch_size = 10
+    batch_size = 2
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
     train(model, dataLoader, args)

@@ -4,7 +4,7 @@ import os
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import AutoConfig, AutoModel
-from BirdMindModel import BirdMindConfig,BirdMindModel
+from models.BirdMindModel import BirdMindConfig,BirdMindModel
 
 
 

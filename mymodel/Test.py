@@ -5,7 +5,7 @@ import os
 os.environ["HF_ENDPOINT"]="https://hf-mirror.com"
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import AutoConfig, AutoModel
-from BirdMindModel import BirdMindConfig,BirdMindModel
+from models.BirdMindModel import BirdMindConfig,BirdMindModel
 
 
 
