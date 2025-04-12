@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-from BirdMindModel import BirdMindConfig, BirdMindModel
+from models.BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.PretrainDataSet import PretrainDataset
 from dataprocess.Pretrain2048DataSet import Pretrain2048Dataset
@@ -22,7 +22,7 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
     scaler = torch.amp.GradScaler('cuda') if args.device == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.000005, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
