@@ -12,11 +12,11 @@ import dill
 
 
 @dataclass
-class ModelArgs(PretrainedConfig):
+class BirdMindConfig(PretrainedConfig):
     model_type = "birdmind"
     
     def __init__(self, *,
-                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                 device = "cuda" if torch.cuda.is_available() else "cpu",
                  vocab_size: int = 10000,
                  embedding_dim: int = 512,
                  block_size: int = 9, 
@@ -32,7 +32,7 @@ class ModelArgs(PretrainedConfig):
                  train:bool=False,
                  **kwargs):
         
-        self.device: Any = device
+        self.device: str = device
         self.vocab_size: int = vocab_size 
         self.embedding_dim: int = embedding_dim
         self.block_size: int = block_size
@@ -58,7 +58,7 @@ class MHA(nn.Module):
     注意力层
     """
 
-    def __init__(self, layer_id: int, args: ModelArgs):
+    def __init__(self, layer_id: int, args: BirdMindConfig):
         super().__init__()
         self.mha_id = layer_id
         self.dim = args.embedding_dim
@@ -115,7 +115,7 @@ class Gate(torch.nn.Module):
     门控结构
     """
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: BirdMindConfig):
         super().__init__()
         self.dim = args.embedding_dim
         self.top_k = args.n_activated_experts
@@ -189,7 +189,7 @@ class MoE(nn.Module):
     混合专家模型
     """
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: BirdMindConfig):
         super().__init__()
         self.dim = args.embedding_dim
         self.gate = Gate(args)
@@ -253,7 +253,7 @@ class Block(nn.Module):
     主层堆叠
     """
 
-    def __init__(self, layer_id: int, args: ModelArgs):
+    def __init__(self, layer_id: int, args: BirdMindConfig):
         super().__init__()
         # attention
         self.block_id = layer_id
@@ -288,13 +288,13 @@ class RMSNormLayer(nn.Module):
         return F.rms_norm(x, (self.dim,), self.weight, self.eps)
 
 
-class Model(PreTrainedModel):
-    config_class = ModelArgs
+class BirdMindModel(PreTrainedModel):
+    config_class = BirdMindConfig
     """
     主要模型类
     """
 
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: BirdMindConfig):
         super().__init__(args)
         if args.train:
             self.train()
@@ -380,25 +380,25 @@ class Model(PreTrainedModel):
 
     # 参考 minimind
     @torch.inference_mode()
-    def generate(self, input_ids, eos_token_id=2, max_new_tokens=1024, temperature=0.75, top_p=0.90,
+    def generate(self, input_ids, eos_token_id=2, max_length=1024, temperature=0.75, top_p=0.90,
                  stream=False, rp=1., use_cache=True, pad_token_id=0, **args):
         # 流式生成
         if stream:
-            return self._stream(input_ids, eos_token_id, max_new_tokens, temperature, top_p, rp, use_cache, **args)
+            return self._stream(input_ids, eos_token_id, max_length, temperature, top_p, rp, use_cache, **args)
 
         # 直接生成
         generated = []
         for i in range(input_ids.size(0)):
             non_pad = input_ids[i][input_ids[i] != pad_token_id].unsqueeze(0)
-            out = self._stream(non_pad, eos_token_id, max_new_tokens, temperature, top_p, rp, use_cache, **args)
+            out = self._stream(non_pad, eos_token_id, max_length, temperature, top_p, rp, use_cache, **args)
             tokens_list = [tokens[:, -1:] for tokens in out]
             gen = torch.cat(tokens_list, dim=-1) if tokens_list else non_pad
             full_sequence = torch.cat([non_pad, gen], dim=-1)
             generated.append(full_sequence)
-        max_length = max(seq.size(1) for seq in generated)
+        temp_max_length = max(seq.size(1) for seq in generated)
         generated = [
             torch.cat(
-                [seq, torch.full((1, max_length - seq.size(1)), pad_token_id, dtype=seq.dtype, device=seq.device)],
+                [seq, torch.full((1, temp_max_length - seq.size(1)), pad_token_id, dtype=seq.dtype, device=seq.device)],
                 dim=-1)
             for seq in generated
         ]
@@ -455,14 +455,14 @@ class Model(PreTrainedModel):
         return logits
     
     @staticmethod
-    def init_model(args: ModelArgs,load_path:str = "./model.pth" ):
+    def init_model(birdMindConfig: BirdMindConfig,load_path:str = "./model.pth" ):
         tokenizer = AutoTokenizer.from_pretrained('./birdmind_tokenizer')
         
-        model = Model(args)
+        model = BirdMindModel(birdMindConfig)
         if os.path.exists(load_path):
             model.load_state_dict(torch.load(load_path))
         print(model)
-        model.to(args.device)
+        model.to(birdMindConfig.device)
         
         print(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
         

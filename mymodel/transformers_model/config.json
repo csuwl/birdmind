@@ -1,0 +1,26 @@
+{
+  "architectures": [
+    "BirdMindModel"
+  ],
+  "auto_map": {
+    "AutoConfig": "BirdMindModel.BirdMindConfig",
+    "AutoModelForCausalLM": "BirdMindModel.BirdMindModel"
+  },
+  "block_size": 16,
+  "device": "cuda",
+  "embedding_dim": 512,
+  "max_seq_len": 4096,
+  "model_type": "birdmind",
+  "moe_inter_dim": 512,
+  "n_activated_experts": 2,
+  "n_expert_groups": 6,
+  "n_shared_experts": 2,
+  "num_heads": 8,
+  "qk_dim": 128,
+  "score_func": "softmax",
+  "torch_dtype": "float32",
+  "train": false,
+  "transformers_version": "4.51.0",
+  "v_dim": 128,
+  "vocab_size": 10000
+}

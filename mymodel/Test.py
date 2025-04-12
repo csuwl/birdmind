@@ -1,28 +1,41 @@
 import torch
+import dill
+import os
+
+os.environ["HF_ENDPOINT"]="https://hf-mirror.com"
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoModel
+from BirdMindModel import BirdMindConfig,BirdMindModel
 
 
-def get_position_embedding(x: torch.Tensor, head_num: int) -> torch.Tensor:
+
+
+def get_position_embedding(seq_len: int, head_num: int, device) -> torch.Tensor:
         """
          x : last 2 dimension is same
          return position shape  (head, seq_len, seq_len)
         """
 
-        seq_len = x.shape[-1]
-        position = torch.zeros(head_num, seq_len, seq_len, dtype=x.dtype, device=x.device)
+        position = torch.zeros(head_num, seq_len, seq_len, device=device,requires_grad=False)
         for head in range(head_num):
             for i in range(seq_len):
                 for j in range(seq_len):
                     if i < j:
                         continue
-                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)))
+                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),device=device,requires_grad=False)
         return position
 
 
 if __name__ == "__main__":
 
+    
+    model = AutoModelForCausalLM.from_pretrained("./transformers_model/",trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained("./transformers_model/")
+    model_inputs = tokenizer(["你好，很高兴认识你"], return_tensors="pt").to("cuda")
+    model.to("cuda")
 
-    a = torch.tensor([1,2,3])
-    b = torch.tensor([[1,2,3],[4,5,6],[7,8,9]])
-    print(b+a)
+    generated_ids = model.generate(**model_inputs, max_length=30)
+    x = tokenizer.batch_decode(generated_ids)[0]
+    print(x)
 
     

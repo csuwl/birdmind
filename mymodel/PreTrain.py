@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-from Model import ModelArgs, Model
+from BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.PretrainDataSet import PretrainDataset
 from dataprocess.Pretrain2048DataSet import Pretrain2048Dataset
@@ -16,13 +16,13 @@ from contextlib import nullcontext
 """
 
 
-def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: int = 2, accmulation:int = 150):
+def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, epoch_num: int = 2, accmulation:int = 150):
     model.train()
-    ctx = torch.amp.autocast('cuda') if args.device.type == "cuda" else torch.amp.autocast('cpu')
-    scaler = torch.amp.GradScaler('cuda') if args.device.type == "cuda" else torch.amp.GradScaler('cpu')
+    ctx = torch.amp.autocast('cuda') if args.device == "cuda" else torch.amp.autocast('cpu')
+    scaler = torch.amp.GradScaler('cuda') if args.device == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00001, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
@@ -73,7 +73,7 @@ def train(model: Model, train_loader: DataLoader, args: ModelArgs, epoch_num: in
 
 if __name__ == '__main__':
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     # device = torch.device("cpu")
     
     if torch.cuda.is_available():
@@ -83,8 +83,8 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=10000, embedding_dim=512,block_size=16,train=True)
-    tokenizer, model = Model.init_model(args,"./model_10000.pth")
+    args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512,block_size=16,train=True)
+    tokenizer, model = BirdMindModel.init_model(args,"./model_10000.pth")
     
     # train_data = PretrainDataset("../pretrain_hq.jsonl", tokenizer)
     train_data = Pretrain2048Dataset("../sft_2048.jsonl",tokenizer)

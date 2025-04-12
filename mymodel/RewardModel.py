@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-from Model import Model,ModelArgs
+from BirdMindModel import BirdMindModel,BirdMindConfig
 from transformers import AutoTokenizer
 
 class RewardModel(nn.module):
-    def __init__(self,baseModel:Model,**args):
+    def __init__(self,baseModel:BirdMindModel,**args):
         super().__init__(args)
         self.baseModel = baseModel
         self.rewardHead= nn.Linear(baseModel.linear.out_features,1)
@@ -17,10 +17,10 @@ class RewardModel(nn.module):
         return reward
     
     @staticmethod
-    def init_model(args: ModelArgs,sft_load_path:str = "./sft_model.pth",reward_load_path:str=None):
+    def init_model(args: BirdMindConfig,sft_load_path:str = "./sft_model.pth",reward_load_path:str=None):
         tokenizer = AutoTokenizer.from_pretrained('./birdmind_tokenizer')
         
-        model = Model.init_model(args,sft_load_path)
+        model = BirdMindModel.init_model(args,sft_load_path)
         rewarModel = RewardModel(model)
         if reward_load_path is not None:
             rewarModel.load_state_dict(torch.load(reward_load_path))

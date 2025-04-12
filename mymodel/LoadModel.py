@@ -1,10 +1,10 @@
 import torch
 from transformers import AutoTokenizer
 
-from Model import Model, ModelArgs
+from BirdMindModel import BirdMindModel, BirdMindConfig
 
 
-def generate(tokenizer , model:Model ,str, max_seq_len):
+def generate(tokenizer , model:BirdMindModel ,str, max_seq_len):
     tokens = tokenizer(
         str,
         max_length=512,
@@ -24,8 +24,8 @@ def generate(tokenizer , model:Model ,str, max_seq_len):
 
 
 if __name__ == '__main__':
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # device = torch.device("cpu")
     
     if torch.cuda.is_available():
         print("use cuda")
@@ -34,8 +34,8 @@ if __name__ == '__main__':
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
-    tokenizer, model = Model.init_model(args,"./model.pth")
+    args = BirdMindConfig(device = device, vocab_size=6400, embedding_dim=512)
+    tokenizer, model = BirdMindModel.init_model(args,"./model.pth")
 
 
 

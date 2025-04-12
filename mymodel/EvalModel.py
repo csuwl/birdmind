@@ -1,5 +1,5 @@
 import torch
-from Model import Model,ModelArgs
+from Model import BirdMindModel,BirdMindConfig
 
 if __name__=="__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -12,8 +12,8 @@ if __name__=="__main__":
     else:
         print("use cpu")
 
-    args = ModelArgs(device = device, vocab_size=6400, embedding_dim=512)
-    tokenizer, model = Model.init_model(args,'./sft_r1_model.pth')
+    args = BirdMindConfig(device = device, vocab_size=6400, embedding_dim=512)
+    tokenizer, model = BirdMindModel.init_model(args,'./sft_r1_model.pth')
 
 
     for index, prompt in enumerate(iter(lambda: input('请输入:'),'')):
