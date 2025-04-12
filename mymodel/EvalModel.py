@@ -12,7 +12,7 @@ if __name__=="__main__":
     else:
         print("use cpu")
 
-    args = BirdMindConfig(device = device, vocab_size=6400, embedding_dim=512)
+    args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512)
     tokenizer, model = BirdMindModel.init_model(args,'./sft_r1_model.pth')
 
 
