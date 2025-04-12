@@ -19,3 +19,4 @@ mymodel/model_10000.pth
 sft_2048.jsonl
 mymodel/dataprocess/__pycache__/Pretrain2048DataSet.cpython-312.pyc
 mymodel/__pycache__/BirdMindModel.cpython-312.pyc
+mymodel/transformers_model/model.safetensors
