@@ -20,7 +20,6 @@ sft_2048.jsonl
 mymodel/dataprocess/__pycache__/Pretrain2048DataSet.cpython-312.pyc
 mymodel/__pycache__/BirdMindModel.cpython-312.pyc
 mymodel/transformers_model/model.safetensors
-mymodel/DistillR1Train.py
 mymodel/models/__pycache__/BirdMindModel.cpython-312.pyc
 mymodel/output/model_grpo/runs/Apr12_22-12-04_山川/events.out.tfevents.1744467124.山川.32788.0
 mymodel/output/model_grpo/runs/Apr12_22-36-49_山川/events.out.tfevents.1744468610.山川.41764.0
@@ -30,3 +29,10 @@ mymodel/output/model_grpo/runs/Apr12_22-48-24_山川/events.out.tfevents.1744469
 mymodel/output/model_grpo/runs/Apr12_22-54-34_山川/events.out.tfevents.1744469675.山川.31464.0
 mymodel/dataprocess/__pycache__/GrpoDataSet.cpython-312.pyc
 mymodel/sft_model_10000.pth
+mymodel/output/model_grpo/runs/Apr13_00-57-05_山川/events.out.tfevents.1744477025.山川.37176.0
+mymodel/output/model_grpo/runs/Apr13_09-23-42_山川/events.out.tfevents.1744507423.山川.29360.0
+mymodel/output/model_grpo/runs/Apr13_09-32-21_山川/events.out.tfevents.1744507941.山川.30948.0
+mymodel/output/model_grpo/runs/Apr13_09-40-27_山川/events.out.tfevents.1744508427.山川.28596.0
+mymodel/output/model_grpo/runs/Apr13_09-46-53_山川/events.out.tfevents.1744508813.山川.33812.0
+mymodel/output/model_grpo/runs/Apr13_09-56-14_山川/events.out.tfevents.1744509375.山川.20272.0
+mymodel/sft_r1_model_10000.pth

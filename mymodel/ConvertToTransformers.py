@@ -11,7 +11,7 @@ from models.BirdMindModel import BirdMindConfig,BirdMindModel
 if __name__ == "__main__":
     
     birdMindConfig = BirdMindConfig(vocab_size=10000, embedding_dim=512,block_size=16)
-    tokenizer, model = BirdMindModel.init_model(birdMindConfig,"./model_10000.pth")
+    tokenizer, model = BirdMindModel.init_model(birdMindConfig,"./sft_model_10000.pth")
 
     BirdMindConfig.register_for_auto_class()
     BirdMindModel.register_for_auto_class("AutoModelForCausalLM")

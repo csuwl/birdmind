@@ -27,6 +27,7 @@ class DistillR1Dataset(Dataset):
     def _create_chat_prompt(self, conversations):
         """构建符合ChatML格式的对话"""
         messages = []
+        messages.append({"role": "system", "content": "你是一个人工智能助手birdmind，被设计来回答用户的问题。回答问题前先对问题进行思考，思考内容用<think></think>标签进行包裹，然后再给出答案，答案用<answer></answer>包裹。"})
         messages.append({"role": "user", "content": conversations['input']})
         messages.append({"role": "assistant", "content": "<think>\n"+conversations['reasoning_content']+"\n</think>\n"+"<answer>\n"+conversations['content']+"\n</answer>"})
         # for i, turn in enumerate(conversations):
