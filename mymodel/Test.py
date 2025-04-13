@@ -28,14 +28,15 @@ def get_position_embedding(seq_len: int, head_num: int, device) -> torch.Tensor:
 
 if __name__ == "__main__":
 
-    
-    model = AutoModelForCausalLM.from_pretrained("./transformers_model/",trust_remote_code=True)
-    tokenizer = AutoTokenizer.from_pretrained("./transformers_model/")
-    model_inputs = tokenizer(["你好，很高兴认识你"], return_tensors="pt").to("cuda")
-    model.to("cuda")
-
-    generated_ids = model.generate(**model_inputs, max_length=30)
-    x = tokenizer.batch_decode(generated_ids)[0]
+    tokenizer = AutoTokenizer.from_pretrained('./birdmind_tokenizer')
+    messages = []
+    messages.append({"role": "user", "content": "你好撒"})
+    messages.append({"role": "assistant", "content": "的撒饱和哈然后公司"})
+    x= tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=False
+        )
     print(x)
 
     
