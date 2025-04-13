@@ -23,8 +23,8 @@ def rewardFunction(prompts, completions,**reward_kwargs):
     # print("**reward_kwargs:",reward_kwargs)
     completion = client.chat.completions.create(model="deepseek-reasoner",
                                                 temperature=0.2,
-                                                messages=[{"role":"system","content":"你是一个奖励函数，擅长从用户给你的几个AI回答打分,回答只需包含分数，分数之间用,分隔"},
-                                                  {"role":"user","content":"问题是:{prompts[0]} 回答:{completions}"}])
+                                                messages=[{"role":"system","content":"你是一个奖励函数，擅长从用户给你的两个AI回答打分,回答只需包含分数，分数之间用,分隔"},
+                                                  {"role":"user","content":"问题是:{prompts[0]} \n 回答1:{completions[0]} \n 回答2:{completions[1]}"}])
     scores = completion.choices[0].message.content.split(",")
     scores = [float(x) for x in scores]
     print("scores:",scores)
@@ -55,7 +55,7 @@ if __name__=="__main__":
                lr_scheduler_type='cosine',
                logging_steps=50,
                bf16=True,
-               per_device_train_batch_size=4,
+               per_device_train_batch_size=2,
                gradient_accumulation_steps=10,
                num_generations=2,
                max_prompt_length=1024,

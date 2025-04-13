@@ -28,15 +28,9 @@ def get_position_embedding(seq_len: int, head_num: int, device) -> torch.Tensor:
 
 if __name__ == "__main__":
 
-    tokenizer = AutoTokenizer.from_pretrained('./birdmind_tokenizer')
-    messages = []
-    messages.append({"role": "user", "content": "你好撒"})
-    messages.append({"role": "assistant", "content": "的撒饱和哈然后公司"})
-    x= tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=False
-        )
-    print(x)
+    from datasets import load_dataset
+
+    ds = load_dataset("yys/OpenOrca-Chinese")
+    print(ds['train'][0])
 
     

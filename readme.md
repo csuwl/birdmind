@@ -25,6 +25,12 @@ outputs = model.generate(**inputs, max_length=30)
 # 解码并打印结果
 print(tokenizer.batch_decode(outputs)[0])
 ```
+# 训练过程
+首先使用公开数据进行预训练2个epoch,然后对其进行稍加sft,因为想做grpo实验，所以sft没有进行过多训练。
+最后使用grpo策略进行强化学习
 
 # 数据集 
 预训练数据minimind_dataset的sft_2048.jsonl公开数据集。
+蒸馏数据distill_r1_110k.jsonl
+grpo策略自我提升使用数据distill_r1_110k.jsonl
+

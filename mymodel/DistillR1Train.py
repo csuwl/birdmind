@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 from models.BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.DistillR1DataSet import DistillR1Dataset
+from dataprocess.DistillR1NoThinkDataSet import DistillR1NoThinkDataSet
 from contextlib import nullcontext
 
 """
@@ -21,7 +22,7 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
     scaler = torch.amp.GradScaler('cuda') if args.device == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00001, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
     # 思考标签占位符
     start_of_think_ids = tokenizer('<think>').input_ids
@@ -98,7 +99,8 @@ if __name__ == '__main__':
     args = BirdMindConfig(device = device, vocab_size=10000,block_size=16, embedding_dim=512,train=True)
     tokenizer, model = BirdMindModel.init_model(args,"./sft_r1_model_10000.pth")
     
-    train_data = DistillR1Dataset("./dataset/distill_r1_110k.jsonl", tokenizer)
+    # train_data = DistillR1Dataset("./dataset/distill_r1_110k.jsonl", tokenizer)
+    train_data = DistillR1NoThinkDataSet(tokenizer)
 
     batch_size = 2
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)

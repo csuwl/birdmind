@@ -34,5 +34,6 @@ mymodel/output/model_grpo/runs/Apr13_09-23-42_山川/events.out.tfevents.1744507
 mymodel/output/model_grpo/runs/Apr13_09-32-21_山川/events.out.tfevents.1744507941.山川.30948.0
 mymodel/output/model_grpo/runs/Apr13_09-40-27_山川/events.out.tfevents.1744508427.山川.28596.0
 mymodel/output/model_grpo/runs/Apr13_09-46-53_山川/events.out.tfevents.1744508813.山川.33812.0
-mymodel/output/model_grpo/runs/Apr13_09-56-14_山川/events.out.tfevents.1744509375.山川.20272.0
+mymodel/output/*
 mymodel/sft_r1_model_10000.pth
+mymodel/dataprocess/__pycache__/DistillR1NoThinkDataSet.cpython-312.pyc
