@@ -40,8 +40,8 @@ class DistillR1NoThinkDataSet(Dataset):
         loss_mask = [0] * len(input_ids)
         i = 0
         while i < len(input_ids):
-            if input_ids[i:i + len(self.start_answer)] == self.start_answer:
-                start = i + len(self.start_answer)
+            if input_ids[i:i + len(self.bos_id)] == self.bos_id:
+                start = i + len(self.bos_id)
                 end = start
                 while end < len(input_ids):
                     if input_ids[end:end + len(self.eos_id)] == self.eos_id:
