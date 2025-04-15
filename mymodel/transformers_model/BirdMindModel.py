@@ -66,10 +66,10 @@ class MHA(nn.Module):
         self.qk_dim = args.qk_dim
         self.v_dim = args.v_dim
 
-        self.wq = nn.Linear(self.dim, self.qk_dim * self.n_head)
-        self.wk = nn.Linear(self.dim, self.qk_dim * self.n_head)
-        self.wv = nn.Linear(self.dim, self.v_dim * self.n_head)
-        self.wo = nn.Linear(self.v_dim * self.n_head, self.dim)
+        self.wq = nn.Linear(self.dim, self.qk_dim * self.n_head,False)
+        self.wk = nn.Linear(self.dim, self.qk_dim * self.n_head,False)
+        self.wv = nn.Linear(self.dim, self.v_dim * self.n_head,False)
+        self.wo = nn.Linear(self.v_dim * self.n_head, self.dim,False)
     
 
     def forward(self, x: torch.Tensor, start_pos: int, mask: torch.Tensor,pos_embedding:torch.Tensor,past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
@@ -122,13 +122,12 @@ class Gate(torch.nn.Module):
         self.n_groups = args.n_expert_groups
         self.score_func = args.score_func
         self.weight = nn.Parameter(torch.randn(args.n_expert_groups, args.embedding_dim))
-        self.bias = nn.Parameter(torch.randn(args.n_expert_groups))
 
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
         bsz, seq_len, h = x.shape
         hidden_states = x.view(-1, h)
 
-        logits = F.linear(hidden_states, self.weight, self.bias)
+        logits = F.linear(hidden_states, self.weight, None)
         if self.score_func == 'softmax':
             scores = logits.softmax(dim=-1)
         else:
@@ -161,9 +160,9 @@ class Gate(torch.nn.Module):
 class MLP(torch.nn.Module):
     def __init__(self, dim: int, out_dim: int):
         super().__init__()
-        self.w1 = nn.Linear(dim, out_dim)
-        self.w2 = nn.Linear(out_dim, dim)
-        self.w3 = nn.Linear(dim, out_dim)
+        self.w1 = nn.Linear(dim, out_dim,False)
+        self.w2 = nn.Linear(out_dim, dim,False)
+        self.w3 = nn.Linear(dim, out_dim,False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -176,9 +175,9 @@ class Expert(nn.Module):
 
     def __init__(self, dim: int, out_dim: int):
         super().__init__()
-        self.w1 = nn.Linear(dim, out_dim)
-        self.w2 = nn.Linear(out_dim, dim)
-        self.w3 = nn.Linear(dim, out_dim)
+        self.w1 = nn.Linear(dim, out_dim,False)
+        self.w2 = nn.Linear(out_dim, dim,False)
+        self.w3 = nn.Linear(dim, out_dim,False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -303,7 +302,7 @@ class BirdMindModel(PreTrainedModel):
         for i in range(args.block_size):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
-        self.linear = nn.Linear(args.embedding_dim, args.vocab_size)
+        self.linear = nn.Linear(args.embedding_dim, args.vocab_size,False)
         print("初始化position embedding")
         if self.training and torch.cuda.is_available():
             device = torch.device("cuda")
