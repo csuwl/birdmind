@@ -16,7 +16,7 @@ from contextlib import nullcontext
 """
 
 
-def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, epoch_num: int = 2, accmulation:int = 150):
+def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, epoch_num: int = 2, accmulation:int = 300):
     model.train()
     ctx = torch.amp.autocast('cuda') if args.device == "cuda" else torch.amp.autocast('cpu')
     scaler = torch.amp.GradScaler('cuda') if args.device == "cuda" else torch.amp.GradScaler('cpu')
@@ -65,9 +65,9 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
 
             if (batch_idx+1) % (10*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
-                torch.save(model.state_dict(), "./sft_r1_model_10000.pth")
+                torch.save(model.state_dict(), "./model_10000_nomoe.pth")
             # if batch_idx % (10*accmulation) == 0:
-    torch.save(model.state_dict(), "./sft_r1_model_10000.pth")
+    torch.save(model.state_dict(), "./model_10000_nomoe.pth")
 
 
 
@@ -84,12 +84,12 @@ if __name__ == '__main__':
         print("use cpu")
 
     args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512,block_size=16,train=True)
-    tokenizer, model = BirdMindModel.init_model(args,"./sft_r1_model_10000.pth")
+    tokenizer, model = BirdMindModel.init_model(args,"./model_10000_nomoe.pth")
     
-    train_data = PretrainDataset("./dataset/pretrain_hq.jsonl", tokenizer)
-    # train_data = Pretrain2048Dataset("./dataset/sft_2048.jsonl",tokenizer)
+    # train_data = PretrainDataset("./dataset/pretrain_hq.jsonl", tokenizer)
+    train_data = Pretrain2048Dataset("./dataset/sft_2048.jsonl",tokenizer)
 
-    batch_size = 10
+    batch_size = 2
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)
 
     train(model, dataLoader, args)
