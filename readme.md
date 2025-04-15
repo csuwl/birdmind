@@ -27,6 +27,7 @@ print(tokenizer.batch_decode(outputs)[0])
 ```
 # 训练过程
 首先使用公开数据进行预训练2个epoch,计划对其进行稍加sft,然后使用grpo策略进行强化学习。
+调整了结构需重新训练
 
 # 数据集 
 预训练数据minimind_dataset的sft_2048.jsonl公开数据集。

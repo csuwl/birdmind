@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
-from BirdMindModel import BirdMindModel,BirdMindConfig
+from mymodel.models.BirdMindModel import BirdMindModel,BirdMindConfig
 from transformers import AutoTokenizer
 
 class RewardModel(nn.module):
     def __init__(self,baseModel:BirdMindModel,**args):
         super().__init__(args)
         self.baseModel = baseModel
-        self.rewardHead= nn.Linear(baseModel.linear.out_features,1)
+        self.rewardHead= nn.Linear(baseModel.linear.out_features,1,False)
 
     def forward(self,input_ids:torch.tensor):
         # batch_size,seq_len,embedding_dim
