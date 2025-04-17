@@ -25,6 +25,7 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
+        optimizer.zero_grad(set_to_none=True)
         print("epoch:", epoch)
         for batch_idx, data in enumerate(train_loader):
             x, y, loss_mask = data
@@ -59,6 +60,7 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
 
                 scaler.step(optimizer)  # 替代 optimizer.step()
                 scaler.update()  # 调整缩放因子，准备下一轮
+                optimizer.zero_grad(set_to_none=True)
                 print("梯度更新")
 
             if (batch_idx+1) % (50*accmulation) == 0:

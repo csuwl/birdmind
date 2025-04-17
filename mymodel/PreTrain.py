@@ -22,10 +22,11 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
     scaler = torch.amp.GradScaler('cuda') if args.device == "cuda" else torch.amp.GradScaler('cpu')
     
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.00001, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.01)
     loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
+        optimizer.zero_grad(set_to_none=True)
         print("epoch:", epoch)
         for batch_idx, data in enumerate(train_loader):
             
@@ -61,9 +62,10 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
 
                 scaler.step(optimizer)  # 替代 optimizer.step()
                 scaler.update()  # 调整缩放因子，准备下一轮
+                optimizer.zero_grad(set_to_none=True)
                 print("梯度更新")
 
-            if (batch_idx+1) % (10*accmulation) == 0:
+            if (batch_idx+1) % (5*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
                 torch.save(model.state_dict(), "./model_10000_nomoe.pth")
             # if batch_idx % (10*accmulation) == 0:
