@@ -323,19 +323,26 @@ class BirdMindModel(PreTrainedModel):
         else:
             device = torch.device("cpu")
 
-        if os.path.exists("./position_embedding.pkl"):
-            print("加载possition_embedding缓存")
-            temp_position_embedding = dill.load(open("./position_embedding.pkl",'rb'))
-        else:
-            print("计算position_embedding")
-            temp_position_embedding = self.get_position_embedding(args.max_seq_len,args.num_heads,device=device)
-            dill.dump(temp_position_embedding,open("./position_embedding.pkl",'wb'))
-        self.register_buffer("alibi",temp_position_embedding,persistent=False)
+        self.register_buffer("alibi",self.get_alibi_position(args.num_heads,args.max_seq_len).to(device),persistent=False)
+        
         print("结束初始化position embedding")
         self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         
         self.OUT = CausalLMOutputWithPast()
-        
+    
+
+
+
+    def get_alibi_position(self, num_heads ,seq_len):
+        # 初始化 ALiBi 斜率（每个头不同）
+        slopes = torch.tensor([1 / (2 ** (i / (num_heads - 1) * 8)+1) for i in range(num_heads)])
+        # 生成相对位置矩阵 [seq_len, seq_len]
+        distances = torch.abs(torch.arange(seq_len).unsqueeze(1) - torch.arange(seq_len))
+        # 计算偏置矩阵 [n_heads, seq_len, seq_len]
+        alibi = -distances.unsqueeze(0) * slopes.unsqueeze(1).unsqueeze(2)
+        alibi = alibi.tril(1)
+        alibi.requires_grad=False
+        return alibi
 
     def forward(self, input_ids: Optional[torch.Tensor] = None, past_key_values: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
                 use_cache: bool = False, start_pos: int = 0, **args) -> torch.Tensor:

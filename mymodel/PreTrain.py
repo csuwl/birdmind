@@ -9,6 +9,7 @@ from models.BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.PretrainDataSet import PretrainDataset
 from dataprocess.Pretrain2048DataSet import Pretrain2048Dataset
+from dataprocess.PretraindeepctrlDataSet import PretraindeepctrlDataSet
 from contextlib import nullcontext
 
 """
@@ -89,7 +90,8 @@ if __name__ == '__main__':
     tokenizer, model = BirdMindModel.init_model(args,"./model_10000_nomoe.pth")
     
     # train_data = PretrainDataset("./dataset/pretrain_hq.jsonl", tokenizer)
-    train_data = Pretrain2048Dataset("./dataset/sft_2048.jsonl",tokenizer)
+    # train_data = Pretrain2048Dataset("./dataset/sft_data_zh.jsonl",tokenizer)
+    train_data = PretraindeepctrlDataSet("./dataset/sft_data_zh.jsonl",tokenizer)
 
     batch_size = 2
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)

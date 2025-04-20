@@ -1,5 +1,5 @@
 import torch
-from mymodel.models.BirdMindModel import BirdMindModel,BirdMindConfig
+from models.BirdMindModel import BirdMindModel,BirdMindConfig
 
 if __name__=="__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -12,28 +12,28 @@ if __name__=="__main__":
     else:
         print("use cpu")
 
-    args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512)
-    tokenizer, model = BirdMindModel.init_model(args,'./sft_r1_model.pth')
+    args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512,block_size=16)
+    tokenizer, model = BirdMindModel.init_model(args,'./model_10000_nomoe.pth')
 
 
     for index, prompt in enumerate(iter(lambda: input('请输入:'),'')):
-        messages = []
-        messages.append({"role": "user", "content": prompt})
+        # messages = []
+        # messages.append({"role": "user", "content": prompt})
 
-        new_prompt = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
-        )
-        print(new_prompt)
+        # new_prompt = tokenizer.apply_chat_template(
+        #     messages,
+        #     tokenize=False,
+        #     add_generation_prompt=False
+        # )
+        # print(new_prompt)
         
-        answer = new_prompt
+        answer = prompt
         with torch.no_grad():
-            x = torch.tensor(tokenizer(new_prompt)['input_ids'], device=args.device).unsqueeze(0)
+            x = torch.tensor(tokenizer(prompt)['input_ids'], device=args.device).unsqueeze(0)
             outputs = model.generate(
                 x,
                 eos_token_id=tokenizer.eos_token_id,
-                max_new_tokens=args.max_seq_len,
+                max_length=args.max_seq_len,
                 temperature=0.4,
                 top_p=0.9,
                 stream=True,
