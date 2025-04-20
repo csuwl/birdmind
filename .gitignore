@@ -37,3 +37,4 @@ mymodel/output/model_grpo/runs/Apr13_09-46-53_山川/events.out.tfevents.1744508
 mymodel/output/*
 mymodel/sft_r1_model_10000.pth
 mymodel/dataprocess/__pycache__/DistillR1NoThinkDataSet.cpython-312.pyc
+mymodel/model_10000_nomoe.pth
