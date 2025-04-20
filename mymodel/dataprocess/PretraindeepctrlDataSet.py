@@ -14,14 +14,17 @@ class PretraindeepctrlDataSet(Dataset):
         self.eos_id = tokenizer('</s>', add_special_tokens=False).input_ids
         self.jsonl_path = jsonl_path
         self.total_len = self.count_lines(jsonl_path)
-        self.total_len = int(self.total_len / 2)
+        self.total_len = int(self.total_len / 2)-1
         self.samples = self.load_data(self.jsonl_path)
         print("总行数:",self.total_len)
 
     def load_data(self, jsonl_path):
         samples = []
         with open(jsonl_path, 'r', encoding='utf-8') as f:
+            count = 0
             for line in f:
+                if count< int(self.total_len / 2):
+                    continue
                 line = f.readline()
                 data = json.loads(line.strip())
                 samples.append(data)
