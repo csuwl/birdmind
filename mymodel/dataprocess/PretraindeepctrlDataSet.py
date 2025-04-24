@@ -3,6 +3,7 @@ import json
 from torch.utils.data import Dataset, DataLoader
 import torch
 from transformers import AutoTokenizer
+from json import JSONDecodeError
 
 
 class PretraindeepctrlDataSet(Dataset):
@@ -13,23 +14,29 @@ class PretraindeepctrlDataSet(Dataset):
         self.bos_id = tokenizer('<s>assistant', add_special_tokens=False).input_ids
         self.eos_id = tokenizer('</s>', add_special_tokens=False).input_ids
         self.jsonl_path = jsonl_path
-        self.total_len = self.count_lines(jsonl_path)
-        self.total_len = int(self.total_len / 2)-1
-        self.samples = self.load_data(self.jsonl_path)
-        print("总行数:",self.total_len)
 
-    def load_data(self, jsonl_path):
+        line_count = self.count_lines(jsonl_path)
+        print("总行数:",line_count)
+        self.samples = self.load_data(self.jsonl_path, int(line_count/2))
+        self.total_len = len(self.samples)
+        print("加载行数:",self.total_len)
+
+    def load_data(self, jsonl_path,line_count):
         samples = []
         with open(jsonl_path, 'r', encoding='utf-8') as f:
-            count = 0
-            for line in f:
-                if count< int(self.total_len / 2):
-                    continue
-                line = f.readline()
+            for _ in range(line_count+1):
+                next(f)
+            lines = f.readlines()
+
+        for line in lines:
+            try:
                 data = json.loads(line.strip())
-                samples.append(data)
-                if(len(samples)>=self.total_len):
-                    return samples
+            except JSONDecodeError as e:
+                print("error:",line.strip())
+                continue
+            samples.append(data)
+        
+        return samples    
 
     def __len__(self):
         return self.total_len
