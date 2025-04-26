@@ -38,3 +38,12 @@ mymodel/output/*
 mymodel/sft_r1_model_10000.pth
 mymodel/dataprocess/__pycache__/DistillR1NoThinkDataSet.cpython-312.pyc
 mymodel/model_10000_nomoe.pth
+dataprocess/__pycache__/__init__.cpython-312.pyc
+dataprocess/__pycache__/DistillR1DataSet.cpython-312.pyc
+dataprocess/__pycache__/DistillR1NoThinkDataSet.cpython-312.pyc
+dataprocess/__pycache__/GrpoDataSet.cpython-312.pyc
+dataprocess/__pycache__/Pretrain2048DataSet.cpython-312.pyc
+dataprocess/__pycache__/PretrainDataSet.cpython-312.pyc
+dataprocess/__pycache__/PretraindeepctrlDataSet.cpython-312.pyc
+dataprocess/__pycache__/SFTDataSet.cpython-312.pyc
+models/__pycache__/BirdMindModel.cpython-312.pyc
