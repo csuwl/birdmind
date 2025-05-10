@@ -63,9 +63,10 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
                 optimizer.zero_grad(set_to_none=True)
                 print("梯度更新")
 
-            if (batch_idx+1) % (50*accmulation) == 0:
+            if (batch_idx+1) % (5*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
-                torch.save(model.state_dict(), "./sft_r1_model_10000.pth")
+                torch.save(model.state_dict(), "./sft_model_10000_nomoe.pth")
+        torch.save(model.state_dict(), "./sft_model_10000_nomoe.pth")
 
 
 
@@ -82,7 +83,7 @@ if __name__ == '__main__':
         print("use cpu")
 
     args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512,block_size=16,train=True)
-    tokenizer, model = BirdMindModel.init_model(args,"./sft_r1_model_10000.pth")
+    tokenizer, model = BirdMindModel.init_model(args,"./model_10000_nomoe.pth")
     
     train_data = SFTDataset("./dataset/sft_mini_512.jsonl", tokenizer)
 

@@ -13,7 +13,7 @@ if __name__=="__main__":
         print("use cpu")
 
     args = BirdMindConfig(device = device, vocab_size=10000, embedding_dim=512,block_size=16)
-    tokenizer, model = BirdMindModel.init_model(args,'./model_10000_nomoe.pth')
+    tokenizer, model = BirdMindModel.init_model(args,'./sft_model_10000_nomoe.pth')
 
 
     for index, prompt in enumerate(iter(lambda: input('请输入:'),'')):

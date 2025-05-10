@@ -28,7 +28,7 @@ class DistillR1Dataset(Dataset):
         """构建符合ChatML格式的对话"""
         messages = []
         messages.append({"role": "user", "content": conversations['input']})
-        messages.append({"role": "assistant", "content": "<think>\n"+conversations['reasoning_content']+"\n</think>\n"+"<answer>\n"+conversations['content']+"\n</answer>"})
+        messages.append({"role": "assistant", "content": "<think>\n"+conversations['reasoning_content']+"\n</think>\n"+conversations['content']})
         # for i, turn in enumerate(conversations):
         #     role = 'user' if i % 2 == 0 else 'assistant'
         #     messages.append({"role": role, "content": turn['content']})

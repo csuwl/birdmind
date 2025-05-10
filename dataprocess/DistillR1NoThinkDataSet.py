@@ -7,7 +7,7 @@ from datasets import load_dataset
 
 
 class DistillR1NoThinkDataSet(Dataset):
-    def __init__(self, tokenizer, max_length=2048):
+    def __init__(self, tokenizer, max_length=3000):
         super().__init__()
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -16,7 +16,6 @@ class DistillR1NoThinkDataSet(Dataset):
         self.eos_id = tokenizer('</s>', add_special_tokens=False).input_ids
         self.start_think =  tokenizer('<think>\n', add_special_tokens=False).input_ids
         self.end_think = tokenizer('\n</think>', add_special_tokens=False).input_ids
-        self.start_answer = tokenizer('<answer>\n', add_special_tokens=False).input_ids
 
     def __len__(self):
         return len(self.samples)
@@ -25,15 +24,18 @@ class DistillR1NoThinkDataSet(Dataset):
     def _create_chat_prompt(self, conversations):
         """构建符合ChatML格式的对话"""
         messages = []
+        if conversations.get("system_prompt") is not None and len(conversations.get("system_prompt"))>0:
+            messages.append({"role": "system", "content": conversations['system_prompt']})
         messages.append({"role": "user", "content": conversations['question']})
-        messages.append({"role": "assistant", "content":"<answer>\n"+conversations['response']+"\n</answer>"})
+        messages.append({"role": "assistant", "content":"<think>\n</think>\n"+conversations['response']})
         # for i, turn in enumerate(conversations):
         #     role = 'user' if i % 2 == 0 else 'assistant'
         #     messages.append({"role": role, "content": turn['content']})
         return self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,
-            add_generation_prompt=False
+            add_generation_prompt=False,
+            enalble_thinking=False
         )
 
     def _generate_loss_mask(self, input_ids):
