@@ -7,15 +7,13 @@ from datasets import load_dataset
 
 
 class DistillR1NoThinkDataSet(Dataset):
-    def __init__(self, tokenizer, max_length=3000):
+    def __init__(self, tokenizer, max_length=2048):
         super().__init__()
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.samples = load_dataset("yys/OpenOrca-Chinese")['train']
         self.bos_id = tokenizer('<s>assistant', add_special_tokens=False).input_ids
         self.eos_id = tokenizer('</s>', add_special_tokens=False).input_ids
-        self.start_think =  tokenizer('<think>\n', add_special_tokens=False).input_ids
-        self.end_think = tokenizer('\n</think>', add_special_tokens=False).input_ids
 
     def __len__(self):
         return len(self.samples)

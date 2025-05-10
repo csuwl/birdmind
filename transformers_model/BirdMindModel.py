@@ -31,6 +31,7 @@ class BirdMindConfig(PretrainedConfig):
                  n_activated_experts: int = 2,
                  score_func: Literal["softmax", "sigmoid"] = "softmax",
                  train:bool=False,
+                 use_flash_attention:bool=True,
                  **kwargs):
         
         self.device: str = device
@@ -38,6 +39,7 @@ class BirdMindConfig(PretrainedConfig):
         self.embedding_dim: int = embedding_dim
         self.block_size: int = block_size
         self.use_moe:bool = use_moe
+        self.use_flash_attention = use_flash_attention
 
         # MHA
         self.max_seq_len = max_seq_len
@@ -67,6 +69,7 @@ class MHA(nn.Module):
         self.n_head = args.num_heads
         self.qk_dim = args.qk_dim
         self.v_dim = args.v_dim
+        self.use_flash_attention = args.use_flash_attention
 
         self.wq = nn.Linear(self.dim, self.qk_dim * self.n_head,False)
         self.wk = nn.Linear(self.dim, self.qk_dim * self.n_head,False)
@@ -86,27 +89,34 @@ class MHA(nn.Module):
         q = q.view(batch_size, sequence_len, self.n_head, self.qk_dim)
         k = k.view(batch_size, sequence_len, self.n_head, self.qk_dim)
         v = v.view(batch_size, sequence_len, self.n_head, self.v_dim)
-                
+
         # kv_cache实现
         if past_key_value is not None:
             k = torch.cat([past_key_value[0], k], dim=1)
             v = torch.cat([past_key_value[1], v], dim=1)
         past_kv = (k, v) if use_cache else None
 
-        #         batch,seq_len,head,qk_dim
-        score = torch.einsum('bshk,bShk->bhsS', q, k)
-        score = score / self.qk_dim ** 0.5
-        
-        score += pos_embedding
+        if self.use_flash_attention:
+            q = q.permute(0, 2, 1, 3).contiguous()
+            k = k.permute(0, 2, 1, 3).contiguous()
+            v = v.permute(0, 2, 1, 3).contiguous()    
+            attn_mask = pos_embedding + mask[:sequence_len,:sequence_len]
+            out = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, is_causal=False)
+            out = out.permute(0, 2, 1, 3).contiguous()
+        else:
+            #         batch,seq_len,head,qk_dim
+            score = torch.einsum('bshk,bShk->bhsS', q, k)
+            score = score / self.qk_dim ** 0.5
+            
+            score += pos_embedding
 
-        #  batch,head,seq_len,seq_len
-        if mask is not None:
-            score += mask[:sequence_len,:sequence_len]
-        score = score.softmax(dim=-1).type_as(x)
+            #  batch,head,seq_len,seq_len
+            if mask is not None:
+                score += mask[:sequence_len,:sequence_len]
+            score = score.softmax(dim=-1).type_as(x)
 
-
-        # v * score
-        out = torch.einsum('bhsS,bShv->bshv', score, v)
+            # v * score
+            out = torch.einsum('bhsS,bShv->bshv', score, v)
         # batch,seq_len,dim
         out = self.wo(out.flatten(2))
         return out, past_kv

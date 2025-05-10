@@ -1,4 +1,5 @@
 import os
+os.environ["HF_ENDPOINT"]="https://hf-mirror.com"
 
 import torch
 import torch.nn as nn
@@ -9,6 +10,7 @@ from models.BirdMindModel import BirdMindConfig, BirdMindModel
 
 from dataprocess.DistillR1DataSet import DistillR1Dataset
 from dataprocess.DistillR1NoThinkDataSet import DistillR1NoThinkDataSet
+from dataprocess.DistillThinkDataSet import DistillThinkDataSet
 from contextlib import nullcontext
 
 """
@@ -76,7 +78,7 @@ def train(model: BirdMindModel, train_loader: DataLoader, args: BirdMindConfig, 
                 optimizer.zero_grad(set_to_none=True)
                 print("梯度更新")
 
-            if (batch_idx + 1) % (50*accmulation) == 0:
+            if (batch_idx + 1) % (10*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
                 torch.save(model.state_dict(), "./sft_r1_model_10000_nomoe.pth")
 
@@ -95,10 +97,11 @@ if __name__ == '__main__':
         print("use cpu")
 
     args = BirdMindConfig(device = device, vocab_size=10000,block_size=16, embedding_dim=512,train=True)
-    tokenizer, model = BirdMindModel.init_model(args,"./sft_model_10000_nomoe.pth")
+    tokenizer, model = BirdMindModel.init_model(args,"./sft_r1_model_10000_nomoe.pth")
     
-    # train_data = DistillR1Dataset("./dataset/distill_r1_110k.jsonl", tokenizer)
-    train_data = DistillR1NoThinkDataSet(tokenizer)
+    train_data = DistillR1Dataset("./dataset/distill_r1_110k.jsonl", tokenizer)
+    # train_data = DistillR1NoThinkDataSet(tokenizer)
+    # train_data = DistillThinkDataSet(tokenizer)
 
     batch_size = 2
     dataLoader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True,num_workers=1)

@@ -20,7 +20,8 @@
   "score_func": "softmax",
   "torch_dtype": "float32",
   "train": false,
-  "transformers_version": "4.51.0",
+  "transformers_version": "4.51.3",
+  "use_flash_attention": true,
   "use_moe": false,
   "v_dim": 128,
   "vocab_size": 10000
