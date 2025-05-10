@@ -18,11 +18,16 @@ tokenizer = AutoTokenizer.from_pretrained("./transformers_model/")
 # 将模型转移到 GPU
 model.to("cuda")
 
+messages = []  
+messages.append({"role": "user", "content": "你好啊"})
+text = tokenizer.apply_chat_template(messages,tokenize=False,add_generation_prompt=True,enable_thinking=True)
+
 # 编码输入并生成文本
-inputs = tokenizer(["你好，很高兴认识你"], return_tensors="pt").to("cuda")
-outputs = model.generate(**inputs, max_length=30)
+inputs = tokenizer([text], return_tensors="pt").to("cuda")
+outputs = model.generate(**inputs, max_length=2048)
 
 # 解码并打印结果
+print("-----------------------")
 print(tokenizer.batch_decode(outputs)[0])
 ```
 # 训练过程
