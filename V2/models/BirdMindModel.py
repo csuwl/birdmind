@@ -39,6 +39,7 @@ class BirdMindConfig(PretrainedConfig):
                  score_func: Literal["softmax", "sigmoid"] = "softmax",
                  use_flash_attention:bool=False,
                  router_aux_loss_coef=0.001,
+                 use_sliding_window = False,
                  **kwargs):
         
         self.device: str = device
@@ -61,6 +62,7 @@ class BirdMindConfig(PretrainedConfig):
         self.n_activated_experts: int = n_activated_experts
         self.score_func: Literal["softmax", "sigmoid"] = score_func
         self.router_aux_loss_coef = router_aux_loss_coef
+        self.use_sliding_window = use_sliding_window
         super().__init__(**kwargs)
 
 
@@ -94,7 +96,6 @@ def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
         # slopes: [num_heads] -> [1, num_heads, 1, 1]
         # relative_pos: [batch_size, 1, seq_len, seq_len]
         alibi = -torch.abs(relative_pos).unsqueeze(1) * slopes.view(1, num_heads, 1, 1)
-        print(f"alibi: {alibi}")
         
         # 5. 应用因果掩码 (仅保留下三角部分)
         # 创建因果掩码 [seq_len, seq_len]
@@ -137,13 +138,16 @@ class MHA(nn.Module):
         k = k.view(batch_size, sequence_len, self.n_head, self.qk_dim)
         v = v.view(batch_size, sequence_len, self.n_head, self.v_dim)
 
+        q = q.transpose(1, 2) 
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
         # kv_cache实现
         if past_key_values is not None:
-            past_key_values.update(k,v,self.mha_id)
+            k,v = past_key_values.update(k,v,self.mha_id)
 
         
         #         batch,seq_len,head,qk_dim
-        score = torch.einsum('bshk,bShk->bhsS', q, k)
+        score = torch.einsum('bhsk,bhSk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
         
         score += pos_cis_bias
@@ -154,7 +158,7 @@ class MHA(nn.Module):
         score = score.softmax(dim=-1).type_as(x)
 
         # v * score
-        out = torch.einsum('bhsS,bShv->bshv', score, v)
+        out = torch.einsum('bhsS,bhSv->bshv', score, v)
         # batch,seq_len,dim
         out = self.wo(out.flatten(2))
         return out, score
@@ -189,7 +193,6 @@ class Gate(torch.nn.Module):
         if self.top_k > 1 :
             denominator = topk_weight.sum(dim=-1, keepdim=True) + 1e-20
             topk_weight = topk_weight / denominator
-
         return topk_idx, topk_weight, logits
 
 
@@ -367,9 +370,7 @@ def load_balancing_loss_func(
         concatenated_gate_logits = torch.cat([layer_gate.to(compute_device) for layer_gate in gate_logits], dim=0)
 
     routing_weights = torch.nn.functional.softmax(concatenated_gate_logits, dim=-1)
-
     _, selected_experts = torch.topk(routing_weights, top_k, dim=-1)
-
     expert_mask = torch.nn.functional.one_hot(selected_experts, num_experts)
 
     if attention_mask is None:
@@ -653,7 +654,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
 
         all_hidden_states +=(inputs_embeds,)
         for i,block in enumerate(self.blocks):
-            output,self_attn_weights,router_logits = block(output, causal_mask, position_ids, pos_cis ,past_key_values,cache_position)
+            output,router_logits,self_attn_weights, = block(output, causal_mask, position_ids, pos_cis ,past_key_values,cache_position)
             all_hidden_states += (output,)
             all_self_attns += (self_attn_weights,)
             all_router_logits += (router_logits,)
@@ -666,19 +667,22 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         # batch_size,seq_len,vocab_size
         logits = self.linear(hidden_state[:, slice_indices, :])
         
-        aux_loss = load_balancing_loss_func(
+        
+        
+        loss = None
+        aux_loss = None
+        if labels is not None:
+            aux_loss = load_balancing_loss_func(
                 all_router_logits,
                 self.config.n_expert_groups,
                 self.config.n_activated_experts,
                 attention_mask,
             )
-        
-        loss = None
-        if labels is not None:
             loss = self.loss_function(logits, labels, self.vocab_size, **kwargs)
             loss += self.config.router_aux_loss_coef * aux_loss.to(loss.device)
     
         return MoeCausalLMOutputWithPast(
+            logits=logits,
             loss=loss,
             aux_loss=aux_loss,
             past_key_values = past_key_values,
@@ -687,23 +691,6 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
             router_logits = all_router_logits,
         )
     
-    
-
-    def get_position_embedding(self, seq_len: int, head_num: int, device) -> torch.Tensor:
-        """
-         x : last 2 dimension is same
-         return position shape  (head, seq_len, seq_len)
-        """
-
-        position = torch.zeros(head_num, seq_len, seq_len, device=device,requires_grad=False)
-        for head in range(head_num):
-            for i in range(seq_len):
-                for j in range(seq_len):
-                    if i < j:
-                        continue
-                    position[head, i, j] = torch.tensor(- (i - j) * 2 ** (-(head + 1)),device=device,requires_grad=False)
-        return position
-
 
 
     

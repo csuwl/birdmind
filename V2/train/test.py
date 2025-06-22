@@ -1,7 +1,11 @@
-from transformers import AutoTokenizer,PreTrainedTokenizer
+from transformers import AutoTokenizer,PreTrainedTokenizer,AutoModelForCausalLM
 import torch
 import torch.nn as nn
 import math
+import os
+import sys
+sys.path.append("./V2/models")
+from BirdMindModel import BirdMindModel,BirdMindConfig
 
 
 def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
@@ -48,11 +52,13 @@ def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
 
 
 if __name__ == "__main__":
-    print("max: ",torch.max(torch.tensor([[0,5,6], [2,4,8]])))
-    position_alibi = get_alibi_bias(3,torch.tensor([[0,5,6], [2,4,8]]))
-    print(position_alibi)
-    all_hidden_states = ()
-    all_hidden_states += (torch.tensor([[0,5,6], [2,4,8]]),)
-    all_hidden_states += (torch.tensor([[0,5,6], [2,4,8]]),)
-    print(all_hidden_states)
-    print(torch.nn.functional.one_hot(torch.tensor([[0, 1], [2, 5]]), num_classes=10))
+    tokenizer = AutoTokenizer.from_pretrained("./V2/qwen3_tokenizer", trust_remote_code=True)
+    birdMindConfig = BirdMindConfig()
+    model = BirdMindModel(birdMindConfig)
+    text = tokenizer.apply_chat_template([{'role': 'user', 'content': '你好的'}, {'role': 'assistant', 'content': '我好的，你好吗'}], tokenize=False, add_generation_prompt=True)
+    print(text)
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=birdMindConfig.max_seq_len)
+    print(inputs)
+    out = model.generate(**inputs)
+    print(tokenizer.batch_decode(out, skip_special_tokens=True))
+    
