@@ -48,13 +48,14 @@ if __name__ == "__main__":
 
     
     tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True)
-    birdMindConfig = BirdMindConfig()
+    birdMindConfig = BirdMindConfig(pad_token_id = tokenizer.pad_token_id, eos_token_id = tokenizer.eos_token_id, bos_token_id = tokenizer.bos_token_id,unk_token_id =  tokenizer.unk_token_id, sep_token_id =  tokenizer.sep_token_id)
+    print(birdMindConfig.pad_token_id)
     model:PreTrainedModel = BirdMindModel(birdMindConfig)
     text = tokenizer.apply_chat_template([{'role': 'user', 'content': '你好吗，你能干什么？'}, {'role': 'assistant', 'content': '我好的，你好吗'}], tokenize=False, add_generation_prompt=True)
     print(text)
     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=birdMindConfig.max_seq_len)
     print(inputs)
-    out = model.generate(**inputs,max_length=30)
+    out = model.generate(**inputs,max_length=30,tokenizer=tokenizer)
     print(tokenizer.batch_decode(out, skip_special_tokens=False))
     model.save_pretrained("./V2/models")
     
