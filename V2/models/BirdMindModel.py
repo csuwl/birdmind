@@ -26,7 +26,7 @@ class BirdMindConfig(PretrainedConfig):
                  device = "cuda" if torch.cuda.is_available() else "cpu",
                  vocab_size: int = 151936,
                  embedding_dim: int = 512,
-                 block_size: int = 12, 
+                 block_size: int = 24, 
                  max_seq_len: int = 4096,
                  num_heads: int = 8,
                  use_moe: bool = True,
@@ -145,16 +145,15 @@ class MHA(nn.Module):
         if past_key_values is not None:
             k,v = past_key_values.update(k,v,self.mha_id)
 
-        
         #         batch,seq_len,head,qk_dim
         score = torch.einsum('bhsk,bhSk->bhsS', q, k)
         score = score / self.qk_dim ** 0.5
-        
         score += pos_cis_bias
 
         #  batch,head,seq_len,seq_len
         if causal_mask is not None:
-            score += causal_mask[:,:,:sequence_len,:sequence_len]
+            score += causal_mask[:, :, :, : k.shape[-2]]
+
         score = score.softmax(dim=-1).type_as(x)
 
         # v * score
@@ -429,15 +428,14 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size, False)
-        # print("初始化position embedding")
-        # if self.training and torch.cuda.is_available():
-        #     device = torch.device("cuda")
-        # else:
-        #     device = torch.device("cpu")
+        print("初始化position embedding")
 
-        # self.register_buffer("alibi",get_alibi_bias(args.num_heads,torch.arange(0,args.max_seq_len)).to(device),persistent=False)
+        self.register_buffer("alibi",get_alibi_bias(args.num_heads,torch.arange(0,args.max_seq_len).unsqueeze(0)),persistent=False)
+        base = 2**(-8/(args.num_heads-1))  # 优化计算：避免在循环中重复计算幂
+        alibi_slop = torch.pow(base, torch.arange(args.num_heads))
+        self.register_buffer("alibi_slop", alibi_slop, persistent=False)
         
-        # print("结束初始化position embedding")
+        print("结束初始化position embedding")
         # self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         self.config = args
 
@@ -613,6 +611,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         past_key_values: Cache = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_router_logits: Optional[bool] = None,
@@ -625,7 +624,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         :param tokens:
         :return:
         """
-        if past_key_values is None:
+        if use_cache and past_key_values is None:
             past_key_values = DynamicCache()
 
         if inputs_embeds is None:
@@ -644,7 +643,18 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         )
 
         # 位置偏置 1,num_head,seq_len,seq_len
-        pos_cis = get_alibi_bias(self.config.num_heads, position_ids)
+        max_position = torch.max(position_ids)
+        min_position = torch.min(position_ids)
+        if max_position >= self.alibi.shape[-1]:
+            # 如果position_ids超过了alibi的最大长度，则需要重新计算
+            # bth,head,seq_len,seq_len -> 1,head,1,max_position
+            add_bias = -self.alibi_slop.view(1, -1, 1, 1) *  torch.arange(max_position+1,0,-1).view(1,1,-1)
+            temp_bias = torch.cat([self.alibi,add_bias], dim = -2)
+            lie = torch.tensor([0]).expand(1,self.config.num_heads,temp_bias.shape[-2],1)
+            temp_bias = torch.cat([temp_bias,lie],dim=-1)
+            self.register_buffer("alibi", temp_bias)
+
+        pos_cis = self.alibi[:, :,  min_position : max_position+1, : max_position+1]
 
         output = inputs_embeds
 
