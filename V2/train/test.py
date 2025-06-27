@@ -53,7 +53,9 @@ if __name__ == "__main__":
     
     tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True,padding_side='left')
 
-    config = BirdMindConfig()
+    config = BirdMindConfig(pad_token_id=tokenizer.pad_token_id,
+                            bos_token_id=tokenizer.bos_token_id,
+                            eos_token_id=tokenizer.eos_token_id,)
     model = BirdMindModel(config)
     model.save_pretrained("./V2/models")
     config.save_pretrained("./V2/models")

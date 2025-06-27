@@ -58,9 +58,9 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
 
             if (batch_idx+1) % (5*accmulation) == 0:
                 print(f'batch_idx[{batch_idx}] loss: {loss.item():.4f}')
-                model.save("./models")
+                model.save_pretrained("./V2/models")
             # if batch_idx % (10*accmulation) == 0:
-    model.save("./models")
+    model.save_pretrained("./V2/models")
 
 if __name__ == "__main__":
     tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True,padding_side='left')
