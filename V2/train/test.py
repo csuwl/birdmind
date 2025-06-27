@@ -1,4 +1,7 @@
-from transformers import AutoTokenizer,PreTrainedTokenizer,AutoModelForCausalLM,GenerationMixin,PreTrainedModel
+from transformers import AutoTokenizer,AutoModelForCausalLM
+from transformers.modeling_utils import PreTrainedModel
+from transformers.generation.utils import GenerationMixin
+from transformers.tokenization_utils import PreTrainedTokenizer
 import torch
 import torch.nn as nn
 import math
@@ -50,8 +53,10 @@ if __name__ == "__main__":
     
     tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True,padding_side='left')
 
-    config = BirdMindConfig.from_pretrained("./V2/models")
-    model = BirdMindModel.from_pretrained("./V2/models",config=config)
+    config = BirdMindConfig()
+    model = BirdMindModel(config)
+    model.save_pretrained("./V2/models")
+    config.save_pretrained("./V2/models")
 
     text = tokenizer.apply_chat_template([[{'role': 'user', 'content': '你好吗，你能干什么？'}, {'role': 'assistant', 'content': '我好的，你好吗'}],
     [{'role': 'system', 'content': 'xxxxxxxxxxxxxxsoandgaoeiwgw lafld;f dsl;f jdsl;afjiewoangdakfoewnagengiaojdig;jdfiog;iwergndjgl;djgaeowiagn;reagjeoing'}]], tokenize=False, add_generation_prompt=True)
@@ -69,6 +74,4 @@ if __name__ == "__main__":
     # 注册模型
     AutoModel.register(BirdMindConfig, BirdMindModel)
     
-    model.save_pretrained("./V2/models")
-    config.save_pretrained("./V2/models")
     model = AutoModel.from_pretrained("./V2/models")

@@ -11,7 +11,7 @@ from transformers.cache_utils import DynamicCache,Cache,StaticCache,SlidingWindo
 from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 import os
-from transformers.utils import is_torch_flex_attn_available
+from transformers.utils.import_utils import is_torch_flex_attn_available
 
 if is_torch_flex_attn_available():
     from torch.nn.attention.flex_attention import BlockMask

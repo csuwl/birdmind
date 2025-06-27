@@ -23,7 +23,6 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
     
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.00005, weight_decay=0.01)
-    loss_fct = nn.CrossEntropyLoss(reduction='none')
 
     for epoch in range(epoch_num):
         optimizer.zero_grad(set_to_none=True)
@@ -35,7 +34,7 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
             y = y.to('cuda')
             loss_mask = loss_mask.to('cuda')
             with ctx:
-                res = model.generate(inputs = x,labels = y,attention_mask = loss_mask)
+                res = model(inputs = x,labels = y,attention_mask = loss_mask)
                 logits, loss = res.logits, res.loss
                 # 梯度累计
                 loss = loss / accmulation
