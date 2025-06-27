@@ -34,9 +34,6 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
             x = x.to('cuda')
             y = y.to('cuda')
             loss_mask = loss_mask.to('cuda')
-            print("x:",x)
-            print("y:",y)
-            print("loss_mask:",loss_mask)
             with ctx:
                 res = model.generate(inputs = x,labels = y,attention_mask = loss_mask)
                 logits, loss = res.logits, res.loss
@@ -67,7 +64,7 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
     model.save("./models")
 
 if __name__ == "__main__":
-    tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True)
+    tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True,padding_side='left')
 
     config = BirdMindConfig.from_pretrained("./V2/models")
     model = BirdMindModel.from_pretrained("./V2/models",config=config)

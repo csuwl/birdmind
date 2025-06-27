@@ -60,10 +60,10 @@ class PretraindeepctrlDataSet(Dataset):
             for item in item_list:
                 hitstory_text +=item
         text = hitstory_text + instruction + input + output
-        inputs = self.tokenizer(text, return_tensors="pt",padding='max_length', truncation=True, max_length=2048)
+        inputs = self.tokenizer(text, return_tensors="pt",padding='max_length', padding_side='left',truncation=True, max_length=2048)
 
-        input_ids = inputs[0].input_ids
-        attention_mask = inputs[0].attention_mask
+        input_ids = inputs.input_ids[0]
+        attention_mask = inputs.attention_mask[0]
 
         return input_ids, input_ids, attention_mask
 

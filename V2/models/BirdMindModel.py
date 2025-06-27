@@ -643,18 +643,20 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         )
 
         # 位置偏置 1,num_head,seq_len,seq_len
-        max_position = torch.max(position_ids)
-        min_position = torch.min(position_ids)
-        if max_position >= self.alibi.shape[-1]:
+        past_len = past_key_values.get_seq_length()
+        current_len = inputs_embeds.shape[1]
+        total_len = past_len+current_len
+
+        if total_len > self.alibi.shape[-1]:
             # 如果position_ids超过了alibi的最大长度，则需要重新计算
             # bth,head,seq_len,seq_len -> 1,head,1,max_position
-            add_bias = -self.alibi_slop.view(1, -1, 1, 1) *  torch.arange(max_position+1,0,-1).view(1,1,-1)
+            add_bias = -self.alibi_slop.view(1, -1, 1, 1) *  torch.arange(total_len,0,-1).view(1,1,-1)
             temp_bias = torch.cat([self.alibi,add_bias], dim = -2)
             lie = torch.tensor([0]).expand(1,self.config.num_heads,temp_bias.shape[-2],1)
             temp_bias = torch.cat([temp_bias,lie],dim=-1)
             self.register_buffer("alibi", temp_bias)
 
-        pos_cis = self.alibi[:, :,  min_position : max_position+1, : max_position+1]
+        pos_cis = self.alibi[:, :,  past_len : total_len, : total_len]
 
         output = inputs_embeds
 

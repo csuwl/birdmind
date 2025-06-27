@@ -48,15 +48,17 @@ def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
 if __name__ == "__main__":
 
     
-    tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True)
-    birdMindConfig = BirdMindConfig(pad_token_id = tokenizer.pad_token_id, eos_token_id = tokenizer.eos_token_id, bos_token_id = tokenizer.bos_token_id,unk_token_id =  tokenizer.unk_token_id, sep_token_id =  tokenizer.sep_token_id)
-    print(birdMindConfig.pad_token_id)
-    model:PreTrainedModel = BirdMindModel(birdMindConfig)
-    text = tokenizer.apply_chat_template([{'role': 'user', 'content': '你好吗，你能干什么？'}, {'role': 'assistant', 'content': '我好的，你好吗'}], tokenize=False, add_generation_prompt=True)
+    tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True,padding_side='left')
+
+    config = BirdMindConfig.from_pretrained("./V2/models")
+    model = BirdMindModel.from_pretrained("./V2/models",config=config)
+
+    text = tokenizer.apply_chat_template([[{'role': 'user', 'content': '你好吗，你能干什么？'}, {'role': 'assistant', 'content': '我好的，你好吗'}],
+    [{'role': 'system', 'content': 'xxxxxxxxxxxxxxsoandgaoeiwgw lafld;f dsl;f jdsl;afjiewoangdakfoewnagengiaojdig;jdfiog;iwergndjgl;djgaeowiagn;reagjeoing'}]], tokenize=False, add_generation_prompt=True)
     print(text)
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=birdMindConfig.max_seq_len)
+    inputs = tokenizer(text, return_tensors="pt", padding=True, padding_side='left',truncation=True)
     print(inputs)
-    out = model.generate(**inputs,max_length=30,tokenizer=tokenizer)
+    out = model.generate(**inputs,max_length=100,tokenizer=tokenizer)
     print(tokenizer.batch_decode(out, skip_special_tokens=False))
 
     from transformers import AutoConfig, AutoModel
@@ -68,5 +70,5 @@ if __name__ == "__main__":
     AutoModel.register(BirdMindConfig, BirdMindModel)
     
     model.save_pretrained("./V2/models")
-    birdMindConfig.save_pretrained("./V2/models")
+    config.save_pretrained("./V2/models")
     model = AutoModel.from_pretrained("./V2/models")
