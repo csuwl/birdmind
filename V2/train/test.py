@@ -7,6 +7,7 @@ import sys
 sys.path.append('./V2/models')
 from BirdMindModel import BirdMindModel
 from BirdMindModel import BirdMindConfig
+from transformers import AutoConfig, AutoModel
 
 def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
         """
@@ -57,5 +58,15 @@ if __name__ == "__main__":
     print(inputs)
     out = model.generate(**inputs,max_length=30,tokenizer=tokenizer)
     print(tokenizer.batch_decode(out, skip_special_tokens=False))
-    model.save_pretrained("./V2/models")
+
+    from transformers import AutoConfig, AutoModel
+
+    # 注册配置
+    AutoConfig.register("birdmind", BirdMindConfig)
+
+    # 注册模型
+    AutoModel.register(BirdMindConfig, BirdMindModel)
     
+    model.save_pretrained("./V2/models")
+    birdMindConfig.save_pretrained("./V2/models")
+    model = AutoModel.from_pretrained("./V2/models")

@@ -1,4 +1,13 @@
 import torch
+from transformers import AutoTokenizer,PreTrainedTokenizer,AutoModelForCausalLM,GenerationMixin,PreTrainedModel
+import torch
+import torch.nn as nn
+import math
+import os
+import sys
+sys.path.append('./V2/models')
+from BirdMindModel import BirdMindModel
+from BirdMindModel import BirdMindConfig
 
 
 def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
@@ -36,18 +45,8 @@ def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
         return alibi.detach()
 
 if __name__ == "__main__":
-    alibi = get_alibi_bias(8, torch.tensor([[0,1,2,3,4,5,6]]))
-    print(alibi)
-    print("------------------------------------------------")
-    base = 2**(-8/(2-1))  # 优化计算：避免在循环中重复计算幂
-    alibi_slop = torch.pow(base, torch.arange(2))
-    
-    alibi_temp = get_alibi_bias(2, torch.tensor([[0,1,2,3,4,5]]))
-    add_bias = -alibi_slop.view(1, -1, 1, 1) *  torch.arange(5+1,0,-1).view(1,1,-1)
-    print(add_bias)
-    x = torch.cat([alibi_temp,add_bias], dim = -2)
-    print(x)
-    lie = torch.tensor([0]).expand(1,2,x.shape[-2],1)
-    print(lie)
-    x = torch.cat([x,lie],dim=-1)
-    print(x)
+    tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True)
+    # text = tokenizer.apply_chat_template([{'role': 'user', 'content': '你好吗，你能干什么？'}, {'role': 'assistant', 'content': '我好的，你好吗'}], tokenize=False,add_generation_prompt=False)
+    # print(text)
+    inputs = tokenizer(["你好,大哥"], return_tensors="pt",padding='max_length', truncation=True, max_length=2048)
+    print(inputs)
