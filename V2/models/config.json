@@ -2,14 +2,15 @@
   "architectures": [
     "BirdMindModel"
   ],
+  "block_hidden_dim": 128,
   "block_size": 24,
   "device": "cuda",
-  "embedding_dim": 512,
+  "embedding_dim": 1024,
   "eos_token_id": 151645,
-  "loss_type": "ForCausalLMLoss",
+  "loss_type": "ForCausalLM",
   "max_seq_len": 4096,
   "model_type": "birdmind",
-  "moe_inter_dim": 512,
+  "moe_inter_dim": 256,
   "n_activated_experts": 2,
   "n_expert_groups": 6,
   "n_shared_experts": 2,
@@ -21,7 +22,7 @@
   "torch_dtype": "float32",
   "transformers_version": "4.52.4",
   "use_flash_attention": false,
-  "use_moe": true,
+  "use_moe": false,
   "use_sliding_window": false,
   "v_dim": 128,
   "vocab_size": 151936

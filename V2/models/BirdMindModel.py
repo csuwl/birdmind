@@ -25,14 +25,15 @@ class BirdMindConfig(PretrainedConfig):
     def __init__(self, *,
                  device = "cuda" if torch.cuda.is_available() else "cpu",
                  vocab_size: int = 151936,
-                 embedding_dim: int = 512,
+                 embedding_dim: int = 1024,
                  block_size: int = 24, 
+                 block_hidden_dim:int = 128,
                  max_seq_len: int = 4096,
                  num_heads: int = 8,
-                 use_moe: bool = True,
+                 use_moe: bool = False,
                  qk_dim: int = 128,
                  v_dim: int = 128,
-                 moe_inter_dim: int = 512,
+                 moe_inter_dim: int = 256,
                  n_expert_groups: int = 6,
                  n_shared_experts: int = 2,
                  n_activated_experts: int = 2,
@@ -40,7 +41,7 @@ class BirdMindConfig(PretrainedConfig):
                  use_flash_attention:bool=False,
                  router_aux_loss_coef=0.001,
                  use_sliding_window = False,
-                 loss_type = "ForCausalLMLoss",
+                 loss_type = "ForCausalLM",
                  use_bfloat16 = False,
                  torch_dtype = 'float32',
                  **kwargs):
@@ -49,6 +50,7 @@ class BirdMindConfig(PretrainedConfig):
         self.vocab_size: int = vocab_size 
         self.embedding_dim: int = embedding_dim
         self.block_size: int = block_size
+        self.block_hidden_dim:int = block_hidden_dim
         self.use_moe:bool = use_moe
         self.use_flash_attention = use_flash_attention
 
@@ -120,7 +122,7 @@ class MHA(nn.Module):
     def __init__(self, layer_id: int, args: BirdMindConfig):
         super().__init__()
         self.mha_id = layer_id
-        self.dim = args.embedding_dim
+        self.dim = args.block_hidden_dim
         self.n_head = args.num_heads
         self.qk_dim = args.qk_dim
         self.v_dim = args.v_dim
@@ -175,11 +177,11 @@ class Gate(torch.nn.Module):
 
     def __init__(self, args: BirdMindConfig):
         super().__init__()
-        self.dim = args.embedding_dim
+        self.dim = args.block_hidden_dim
         self.top_k = args.n_activated_experts
         self.n_groups = args.n_expert_groups
         self.score_func = args.score_func
-        self.weight = nn.Parameter(torch.randn(args.n_expert_groups, args.embedding_dim))
+        self.weight = nn.Parameter(torch.randn(args.n_expert_groups, args.block_hidden_dim))
 
     def forward(self, x: torch.Tensor) -> tuple[Tensor, Tensor]:
         bsz, seq_len, h = x.shape
@@ -234,13 +236,13 @@ class MoE(nn.Module):
     def __init__(self, args: BirdMindConfig):
         super().__init__()
         self.config = args
-        self.dim = args.embedding_dim
+        self.dim = args.block_hidden_dim
         self.gate = Gate(args)
         self.n_expert_groups = args.n_expert_groups
-        self.n_activated_experts=args.n_activated_experts
+        self.n_activated_experts = args.n_activated_experts
         self.experts = nn.ModuleList(
-            [Expert(args.embedding_dim, args.moe_inter_dim) for _ in range(args.n_expert_groups)])
-        self.shared_experts = MLP(args.embedding_dim, args.n_shared_experts * args.moe_inter_dim)
+            [Expert(args.block_hidden_dim, args.moe_inter_dim) for _ in range(args.n_expert_groups)])
+        self.shared_experts = MLP(args.block_hidden_dim, args.n_shared_experts * args.moe_inter_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
@@ -281,11 +283,11 @@ class MoE(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self, config: BirdMindConfig):
         super().__init__()
-        hidden_dim = 4 * config.embedding_dim
+        hidden_dim = 4 * config.block_hidden_dim
 
-        self.w1 = nn.Linear(config.embedding_dim, hidden_dim, bias=False)
-        self.w2 = nn.Linear(hidden_dim, config.embedding_dim, bias=False)
-        self.w3 = nn.Linear(config.embedding_dim, hidden_dim, bias=False)
+        self.w1 = nn.Linear(config.block_hidden_dim, hidden_dim, bias=False)
+        self.w2 = nn.Linear(hidden_dim, config.block_hidden_dim, bias=False)
+        self.w3 = nn.Linear(config.block_hidden_dim, hidden_dim, bias=False)
 
     def forward(self, x):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -302,8 +304,11 @@ class Block(nn.Module):
         self.block_id = layer_id
         self.attn = MHA(layer_id, args)
         self.feed_forward = FeedForward(args) if not args.use_moe else MoE(args)
-        self.attn_norm = RMSNormLayer(args.embedding_dim)
-        self.ffn_norm = RMSNormLayer(args.embedding_dim)
+        self.attn_norm = RMSNormLayer(args.block_hidden_dim)
+        self.ffn_norm = RMSNormLayer(args.block_hidden_dim)
+
+        self.in_linear = nn.Linear(args.embedding_dim, args.block_hidden_dim,False)
+        self.out_linear = nn.Linear(args.block_hidden_dim, args.embedding_dim,False)
 
     def forward(self, x, causal_mask, position_ids, pos_cis_bias ,past_key_values, cache_position) -> torch.Tensor:
         """
@@ -311,6 +316,8 @@ class Block(nn.Module):
         :param x:
         :return:
         """
+        x = self.in_linear(x)
+
         # batch,seq_len,dim
         h_att, self_attn_weights = self.attn(self.attn_norm(x), causal_mask, position_ids, pos_cis_bias, past_key_values, cache_position)
         x = x + h_att
@@ -320,8 +327,11 @@ class Block(nn.Module):
             out_states, router_logits = out
         else:
             router_logits = None
+            out_states = out
 
         x = x + out_states
+
+        x = self.out_linear(x)
         return x , router_logits , self_attn_weights
 
 
@@ -691,12 +701,15 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         loss = None
         aux_loss = None
         if labels is not None:
-            aux_loss = load_balancing_loss_func(
-                all_router_logits,
-                self.config.n_expert_groups,
-                self.config.n_activated_experts,
-                attention_mask,
-            )
+            if self.config.use_moe:
+                aux_loss = load_balancing_loss_func(
+                    all_router_logits,
+                    self.config.n_expert_groups,
+                    self.config.n_activated_experts,
+                    attention_mask,
+                )
+            else:
+                aux_loss = torch.tensor(0)
             loss = self.loss_function(logits, labels, self.config.vocab_size, **kwargs)
             loss += self.config.router_aux_loss_coef * aux_loss.to(loss.device)
     
@@ -709,24 +722,6 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
             attentions = all_self_attns,
             router_logits = all_router_logits,
         )
-    
-
-
-    
-    
-    # @staticmethod
-    # def init_model(birdMindConfig: BirdMindConfig,load_path:str = "./model.pth" ):
-    #     tokenizer = AutoTokenizer.from_pretrained('./birdmind_tokenizer')
-        
-    #     model = BirdMindModel(birdMindConfig)
-    #     if os.path.exists(load_path):
-    #         model.load_state_dict(torch.load(load_path))
-    #     print(model)
-    #     model.to(birdMindConfig.device)
-        
-    #     print(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
-        
-    #     return tokenizer, model
 
 
 if __name__ == "__main__":
