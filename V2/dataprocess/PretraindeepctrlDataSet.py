@@ -13,11 +13,11 @@ class PretraindeepctrlDataSet(Dataset):
         self.max_length = max_length
         self.jsonl_path = jsonl_path
 
-        # line_count = self.count_lines(jsonl_path)
-        # print("总行数:",line_count)
-        # self.samples = self.load_data(self.jsonl_path, line_count - int(line_count/3))
-        # print("加载行数:",self.total_len)
-        self.samples = self.test_load_data(self.jsonl_path,10)
+        line_count = self.count_lines(jsonl_path)
+        print("总行数:",line_count)
+        self.samples = self.load_data(self.jsonl_path, line_count - int(line_count/3))
+        print("加载行数:",self.total_len)
+        # self.samples = self.test_load_data(self.jsonl_path,10)
 
     def load_data(self, jsonl_path,line_count):
         samples = []
