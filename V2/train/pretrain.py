@@ -34,7 +34,7 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
             y = y.to('cuda')
             loss_mask = loss_mask.to('cuda')
             with ctx:
-                res = model(inputs = x,labels = y,attention_mask = loss_mask)
+                res = model(input_ids = x,labels = y,attention_mask = loss_mask)
                 logits, loss = res.logits, res.loss
                 # 梯度累计
                 loss = loss / accmulation

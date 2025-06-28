@@ -13,11 +13,11 @@ class PretraindeepctrlDataSet(Dataset):
         self.max_length = max_length
         self.jsonl_path = jsonl_path
 
-        line_count = self.count_lines(jsonl_path)
-        print("总行数:",line_count)
-        self.samples = self.load_data(self.jsonl_path, line_count - int(line_count/3))
-        self.total_len = len(self.samples)
-        print("加载行数:",self.total_len)
+        # line_count = self.count_lines(jsonl_path)
+        # print("总行数:",line_count)
+        # self.samples = self.load_data(self.jsonl_path, line_count - int(line_count/3))
+        # print("加载行数:",self.total_len)
+        self.samples = self.test_load_data(self.jsonl_path,10)
 
     def load_data(self, jsonl_path,line_count):
         samples = []
@@ -35,9 +35,19 @@ class PretraindeepctrlDataSet(Dataset):
             samples.append(data)
         
         return samples    
+    
+    def test_load_data(self, jsonl_path,line_count):
+        samples = []
+        with open(jsonl_path, 'r', encoding='utf-8') as f:
+            for _ in range(line_count):
+                line = f.readline()
+                data = json.loads(line.strip())
+                samples.append(data)
+        
+        return samples    
 
     def __len__(self):
-        return self.total_len
+        return len(self.samples)
 
     def count_lines(self,file_path):
         count = 0

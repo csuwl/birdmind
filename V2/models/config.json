@@ -6,6 +6,7 @@
   "device": "cuda",
   "embedding_dim": 512,
   "eos_token_id": 151645,
+  "loss_type": "ForCausalLMLoss",
   "max_seq_len": 4096,
   "model_type": "birdmind",
   "moe_inter_dim": 512,

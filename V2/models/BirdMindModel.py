@@ -40,6 +40,9 @@ class BirdMindConfig(PretrainedConfig):
                  use_flash_attention:bool=False,
                  router_aux_loss_coef=0.001,
                  use_sliding_window = False,
+                 loss_type = "ForCausalLMLoss",
+                 use_bfloat16 = False,
+                 torch_dtype = 'float32',
                  **kwargs):
         
         self.device: str = device
@@ -63,6 +66,9 @@ class BirdMindConfig(PretrainedConfig):
         self.score_func: Literal["softmax", "sigmoid"] = score_func
         self.router_aux_loss_coef = router_aux_loss_coef
         self.use_sliding_window = use_sliding_window
+        self.loss_type = loss_type
+        self.use_bfloat16 =  use_bfloat16
+        self.torch_dtype = torch_dtype
         super().__init__(**kwargs)
 
 
@@ -153,7 +159,6 @@ class MHA(nn.Module):
         #  batch,head,seq_len,seq_len
         if causal_mask is not None:
             score += causal_mask[:, :, :, : k.shape[-2]]
-
         score = score.softmax(dim=-1).type_as(x)
 
         # v * score
@@ -415,6 +420,7 @@ def load_balancing_loss_func(
 
 class BirdMindModel(PreTrainedModel,GenerationMixin):
     config_class = BirdMindConfig
+
     """
     主要模型类
     """
@@ -438,6 +444,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         print("结束初始化position embedding")
         # self.register_buffer("mask",torch.full((args.max_seq_len, args.max_seq_len), float("-inf"),device=args.device, requires_grad=False).triu_(1),persistent=False)
         self.config = args
+        self.loss_type = args.loss_type
 
         self.post_init()
     
@@ -643,7 +650,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         )
 
         # 位置偏置 1,num_head,seq_len,seq_len
-        past_len = past_key_values.get_seq_length()
+        past_len = past_key_values.get_seq_length() if past_key_values is not None else 0
         current_len = inputs_embeds.shape[1]
         total_len = past_len+current_len
 
@@ -690,7 +697,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
                 self.config.n_activated_experts,
                 attention_mask,
             )
-            loss = self.loss_function(logits, labels, self.vocab_size, **kwargs)
+            loss = self.loss_function(logits, labels, self.config.vocab_size, **kwargs)
             loss += self.config.router_aux_loss_coef * aux_loss.to(loss.device)
     
         return MoeCausalLMOutputWithPast(
