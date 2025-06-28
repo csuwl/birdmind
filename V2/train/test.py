@@ -49,6 +49,8 @@ def get_alibi_bias(num_heads: int, position_ids: torch.Tensor) -> torch.Tensor:
 
 
 if __name__ == "__main__":
+    empty = torch.empty((5, 3))
+    print(empty)
 
     
     tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True,padding_side='left')

@@ -12,6 +12,7 @@ from transformers.modeling_outputs import MoeCausalLMOutputWithPast
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 import os
 from transformers.utils.import_utils import is_torch_flex_attn_available
+import torch.nn.init as init
 
 if is_torch_flex_attn_available():
     from torch.nn.attention.flex_attention import BlockMask
@@ -132,6 +133,11 @@ class MHA(nn.Module):
         self.wk = nn.Linear(self.dim, self.qk_dim * self.n_head,False)
         self.wv = nn.Linear(self.dim, self.v_dim * self.n_head,False)
         self.wo = nn.Linear(self.v_dim * self.n_head, self.dim,False)
+
+        init.kaiming_normal_(self.wq.weight)
+        init.kaiming_normal_(self.wk.weight)
+        init.kaiming_normal_(self.wv.weight)
+        init.kaiming_normal_(self.wo.weight)
     
 
     def forward(self, x: torch.Tensor, causal_mask, position_ids, pos_cis_bias, past_key_values:Cache, cache_position) -> torch.Tensor:
@@ -208,6 +214,9 @@ class MLP(torch.nn.Module):
         self.w1 = nn.Linear(dim, out_dim,False)
         self.w2 = nn.Linear(out_dim, dim,False)
         self.w3 = nn.Linear(dim, out_dim,False)
+        init.kaiming_normal_(self.w1.weight)
+        init.kaiming_normal_(self.w2.weight)
+        init.kaiming_normal_(self.w3.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -223,6 +232,9 @@ class Expert(nn.Module):
         self.w1 = nn.Linear(dim, out_dim,False)
         self.w2 = nn.Linear(out_dim, dim,False)
         self.w3 = nn.Linear(dim, out_dim,False)
+        init.kaiming_normal_(self.w1.weight)
+        init.kaiming_normal_(self.w2.weight)
+        init.kaiming_normal_(self.w3.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -288,6 +300,9 @@ class FeedForward(nn.Module):
         self.w1 = nn.Linear(config.block_hidden_dim, hidden_dim, bias=False)
         self.w2 = nn.Linear(hidden_dim, config.block_hidden_dim, bias=False)
         self.w3 = nn.Linear(config.block_hidden_dim, hidden_dim, bias=False)
+        init.kaiming_normal_(self.w1.weight)
+        init.kaiming_normal_(self.w2.weight)
+        init.kaiming_normal_(self.w3.weight)
 
     def forward(self, x):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
@@ -309,6 +324,8 @@ class Block(nn.Module):
 
         self.in_linear = nn.Linear(args.embedding_dim, args.block_hidden_dim,False)
         self.out_linear = nn.Linear(args.block_hidden_dim, args.embedding_dim,False)
+        init.kaiming_normal_(self.in_linear.weight)
+        init.kaiming_normal_(self.out_linear.weight)
 
     def forward(self, x, causal_mask, position_ids, pos_cis_bias ,past_key_values, cache_position) -> torch.Tensor:
         """
@@ -444,6 +461,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
             self.blocks.append(Block(i, args))
         self.rms_norm_layer = RMSNormLayer(args.embedding_dim)
         self.linear = nn.Linear(args.embedding_dim, args.vocab_size, False)
+        init.kaiming_normal_(self.linear.weight)
         print("初始化position embedding")
 
         self.register_buffer("alibi",get_alibi_bias(args.num_heads,torch.arange(0,args.max_seq_len).unsqueeze(0)),persistent=False)
@@ -683,7 +701,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
 
         all_hidden_states +=(inputs_embeds,)
         for i,block in enumerate(self.blocks):
-            output,router_logits,self_attn_weights, = block(output, causal_mask, position_ids, pos_cis ,past_key_values,cache_position)
+            output,router_logits,self_attn_weights = block(output, causal_mask, position_ids, pos_cis ,past_key_values,cache_position)
             all_hidden_states += (output,)
             all_self_attns += (self_attn_weights,)
             all_router_logits += (router_logits,)
