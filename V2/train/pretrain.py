@@ -15,7 +15,7 @@ from BirdMindModel import BirdMindConfig
 from tqdm import tqdm
 
 
-def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, accmulation:int = 300):
+def train(model:GenerationMixin , train_loader: DataLoader, tokenizer:PreTrainedTokenizer, epoch_num: int = 2, accmulation:int = 300):
     model.train()
     model.to('cuda')
     ctx = torch.amp.autocast('cuda') 
@@ -34,8 +34,9 @@ def train(model:GenerationMixin , train_loader: DataLoader, epoch_num: int = 2, 
             y = y.to('cuda')
             loss_mask = loss_mask.to('cuda')
             with ctx:
-                res = model(input_ids = x,labels = y,attention_mask = loss_mask)
+                res = model(input_ids = x,labels = y,attention_mask = loss_mask,ignore_index = tokenizer.pad_token_id)
                 logits, loss = res.logits, res.loss
+                print("loss:",loss)
                 # 梯度累计
                 loss = loss / accmulation
 
@@ -73,4 +74,4 @@ if __name__ == "__main__":
     batch_size = 2
     dataLoader = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True,num_workers=1)
 
-    train(model, dataLoader)
+    train(model, dataLoader,tokenizer)

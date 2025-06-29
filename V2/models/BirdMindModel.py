@@ -27,7 +27,7 @@ class BirdMindConfig(PretrainedConfig):
                  device = "cuda" if torch.cuda.is_available() else "cpu",
                  vocab_size: int = 151936,
                  embedding_dim: int = 1024,
-                 block_size: int = 24, 
+                 block_size: int = 18, 
                  block_hidden_dim:int = 128,
                  max_seq_len: int = 4096,
                  num_heads: int = 8,
@@ -167,8 +167,13 @@ class MHA(nn.Module):
         #  batch,head,seq_len,seq_len
         if causal_mask is not None:
             score += causal_mask[:, :, :, : k.shape[-2]]
-        score = score.softmax(dim=-1).type_as(x)
+        
+        # 替换-inf 防止输出nan
+        replac_mask = score  == -float('inf')
+        score = score.masked_fill(replac_mask,torch.finfo(score.dtype).min)
 
+        score = score.softmax(dim=-1)
+        
         # v * score
         out = torch.einsum('bhsS,bhSv->bshv', score, v)
         # batch,seq_len,dim
@@ -324,6 +329,7 @@ class Block(nn.Module):
 
         self.in_linear = nn.Linear(args.embedding_dim, args.block_hidden_dim,False)
         self.out_linear = nn.Linear(args.block_hidden_dim, args.embedding_dim,False)
+        self.out_rms_norm_layer = RMSNormLayer(args.embedding_dim)
         init.kaiming_normal_(self.in_linear.weight)
         init.kaiming_normal_(self.out_linear.weight)
 
@@ -337,6 +343,7 @@ class Block(nn.Module):
 
         # batch,seq_len,dim
         h_att, self_attn_weights = self.attn(self.attn_norm(x), causal_mask, position_ids, pos_cis_bias, past_key_values, cache_position)
+
         x = x + h_att
         # batch, seq_len, dim
         out = self.feed_forward(self.ffn_norm(x))
@@ -349,6 +356,7 @@ class Block(nn.Module):
         x = x + out_states
 
         x = self.out_linear(x)
+        x = self.out_rms_norm_layer(x)
         return x , router_logits , self_attn_weights
 
 
@@ -715,7 +723,6 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
         logits = self.linear(hidden_state[:, slice_indices, :])
         
         
-        
         loss = None
         aux_loss = None
         if labels is not None:
@@ -728,6 +735,7 @@ class BirdMindModel(PreTrainedModel,GenerationMixin):
                 )
             else:
                 aux_loss = torch.tensor(0)
+
             loss = self.loss_function(logits, labels, self.config.vocab_size, **kwargs)
             loss += self.config.router_aux_loss_coef * aux_loss.to(loss.device)
     

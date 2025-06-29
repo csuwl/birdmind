@@ -48,5 +48,6 @@ if __name__ == "__main__":
     tokenizer:PreTrainedTokenizer = AutoTokenizer.from_pretrained("./V2/models", trust_remote_code=True)
     # text = tokenizer.apply_chat_template([{'role': 'user', 'content': '你好吗，你能干什么？'}, {'role': 'assistant', 'content': '我好的，你好吗'}], tokenize=False,add_generation_prompt=False)
     # print(text)
+    print(tokenizer.pad)
     inputs = tokenizer(["你好,大哥"], return_tensors="pt",padding='max_length', truncation=True, max_length=2048)
     print(inputs)

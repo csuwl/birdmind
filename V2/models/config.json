@@ -3,7 +3,7 @@
     "BirdMindModel"
   ],
   "block_hidden_dim": 128,
-  "block_size": 24,
+  "block_size": 18,
   "device": "cuda",
   "embedding_dim": 1024,
   "eos_token_id": 151645,
